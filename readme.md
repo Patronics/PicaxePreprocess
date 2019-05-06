@@ -3,6 +3,13 @@ A PICAXE preprocessor to implement `#include`, `#macro`, and `#define` for use w
 
 This tool can also be used as a starting point for include/macro implementstions in other software tools
 
+## setup
+If you don't already have it, install python.
+
+copy `picaxepreprocess.py` (and optionally the `Makefile` for advanced usage) to the directory your .bas files are in
+
+that's it!
+
 ## usage
 run ./picaxepreprocess.py from the same directory as the files you want to preprocess.
 If your starting file is named "main.bas", and you're ok with outputing to compiled.bas, that's it!
