@@ -1,0 +1,23 @@
+
+goto init
+#include "2.bas"    ;test
+'the following line demonstrates absolute paths. uncomment and set to an absolute path that exists on your system to test.
+'#include "/Users/patrickleiser/Documents/Programming/Robotics Club/PicaxeInclude/4.bas
+#define testing
+#define message sertxd("New Define")
+
+init:
+toggle 1
+main:
+	gosub testloop
+	toggle 2
+	 SetHeadingSpeed(23, 7)
+	 pause 500
+	 SetHeadingSpeed(92,34)
+	 
+	 #ifdef testing
+	 	sertxd("Old Defines Still Work")
+	 #endif
+	 message
+	 
+goto main
