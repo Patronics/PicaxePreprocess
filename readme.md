@@ -22,3 +22,5 @@ Output files can be specified similarly with `-o outputfilename.bas`
 The preprocessor will automatically look for included files in the working directory, and in a subdirectory called `/include` if it exists. (note: for optimal compatibility with PE6 includes, using this include directory on shared projects with PE6 users is not reccomended.) You can also specifiy absolute file paths.
 
 See the Makefile for an example of advanced usage. When properly configured, the makefile can automatically handle preprocessing the code, compiling it, and uploading to a picaxe chip by simply invoking `make compile` and run a syntax check with `make syntax`. The makefile also demonstrates usage with multiple picaxe chips with separate programs in the same project directory.
+
+If you're interested in this project, you may also like [this similar c-style preprocessor from ParksProjets](https://github.com/ParksProjets/C-Preprocessor)
