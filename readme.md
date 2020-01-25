@@ -23,4 +23,4 @@ The preprocessor will automatically look for included files in the working direc
 
 See the Makefile for an example of advanced usage. When properly configured, the makefile can automatically handle preprocessing the code, compiling it, and uploading to a picaxe chip by simply invoking `make compile` and run a syntax check with `make syntax`. The makefile also demonstrates usage with multiple picaxe chips with separate programs in the same project directory.
 
-If you're interested in this project, you may also like [this similar c-style preprocessor from ParksProjets](https://github.com/ParksProjets/C-Preprocessor)
+If you're interested in this project, you may also like [this similar C-style preprocessor from ParksProjets](https://github.com/ParksProjets/C-Preprocessor).
