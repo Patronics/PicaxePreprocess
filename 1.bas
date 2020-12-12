@@ -6,6 +6,8 @@ goto init
 #define testing
 #define message sertxd("New Define")
 
+#picaxe 18M2
+
 init:
 toggle 1
 main:
