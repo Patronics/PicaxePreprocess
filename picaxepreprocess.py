@@ -1,10 +1,12 @@
 #!/usr/bin/python3
 
-#PICAXE #include, #define, and #macro preprocessor
-#todo: make defines behave like single line macros, allowing(parameters)
-#todo: more thoroughly test macro behaviors, especially with parentheses
-#Created by Patrick Leiser, edited by Jotham Gates
-#TODO: Paths not working properly
+# PICAXE #include, #define, and #macro preprocessor
+# todo: make defines behave like single line macros, allowing(parameters)
+# todo: more thoroughly test macro behaviors, especially with parentheses
+# Created by Patrick Leiser, edited by Jotham Gates
+# Run this script with no options for usage information.
+# TODO: Friendlier error detection and explanations
+
 import sys, getopt, os, datetime, re, os.path, subprocess
 inputfilename = 'main.bas'
 outputfilename = 'compiled.bas'
@@ -74,7 +76,7 @@ def main(argv):
     global tidy
 
     # Use the last argument as the file name if it does not start with a dash
-    if (len(argv) == 1 or len(argv) >= 2 and argv[-2] == "-i") and argv[-1][0] != "-1": # Double check the second last is -i if needed
+    if (len(argv) == 1 or len(argv) >= 2 and argv[-2] == "-i") and argv[-1][0] != "-": # Double check the second last is -i if needed
             # This is not a flag
             inputfilename = argv[-1]
             argv.pop() # Remove the last argument to stop it being confused for getopt
@@ -125,30 +127,24 @@ def main(argv):
 
         
     if not os.path.exists(inputfilename):
-        preprocessor_error("'{}' does not exist. Either specify an input file or put it in the same folder as this script with the name 'main.bas'".format(inputfilename))
+        preprocessor_error("'{}/{}' does not exist. Either specify an input file or put it in the same folder as this script with the name 'main.bas'".format(os.getcwd(), inputfilename))
 
     print('Input file is ', inputfilename)
     print('Output file is ', outputfilename, '\n')
-    # Changing directory
-    # Getting path code from https://stackoverflow.com/a/17057603
-    working_dir, src_file_new = os.path.split(os.path.abspath(src_file))
-    os.chdir(working_dir)
-    if outputfilename.startswith("/"):
-        outputpath=""
-    else:
-        outputpath=path+'/'
-    with open (outputpath+outputfilename, 'w') as output_file:   #desribe output file info at beginning in comments
+    # Python should hopefully keep the same working directory as the shell, so do not need to change it?
+    inputfile = inputfilename.replace("\\","/").split("/")[-1] # Get just the file name.
+    with open (outputfilename, 'w') as output_file:   #desribe output file info at beginning in comments
         output_file.write("'-----PREPROCESSED BY picaxepreprocess.py-----\n")
         output_file.write("'----UPDATED AT "+ datetime.datetime.now().strftime("%I:%M%p, %B %d, %Y") + "----\n")
         output_file.write("'----SAVING AS "+outputfilename+" ----\n\n")
         output_file.write("'---BEGIN "+inputfilename+" ---\n")
-    progparse(inputfilename)   #begin parsing input file into output
+    progparse(inputfile)   #begin parsing input file into output
 
     if send_to_compiler:
         # Calling the correct compiler
         command[0] = "{}{}{}{}".format(compiler_path, compiler_name, chip, compiler_extension)
         command.append("-c{}".format(port))
-        command.append(outputpath+outputfilename)
+        command.append(outputfilename)
 
         print()
         print("Running compiler with command:")
@@ -159,64 +155,65 @@ def main(argv):
         subprocess.run(command)
 
         if tidy: # Delete afterwards if needed
-            os.remove(outputpath+outputfilename)
+            os.remove(outputfilename)
 
     print()
     print("Done.")
                 
-def progparse(curfilename):
+def progparse(curfilename, called_from_line=None, called_from_file=None):
     """ Recursively merges and processes files """
     global definitions
     global chip
     global port
     savingmacro=False
-    print("including file " + curfilename)
+    print("Including file " + curfilename)
     path=os.path.dirname(os.path.abspath(inputfilename))+"/"
-    print("Path: ",path)
     if curfilename.startswith("/"):    #decide if an absolute or relative path
         curpath=""
     else:
         curpath=path
-    #curpath=""
     if (not os.path.isfile(curpath+curfilename)):
         if os.path.isfile(curpath+"include/"+curfilename):
             curpath=curpath+"include/"
-    with open(curpath+curfilename) as input_file:
-        for _, line in enumerate(input_file):
+    if not os.path.exists(curpath + curfilename):
+        preprocessor_error("""Call to include '{}{}' which does not exist.
+Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, called_from_file))
+    with open(curpath + curfilename) as input_file:
+        for count, line in enumerate(input_file):
             workingline=line.lstrip()
             if workingline.lower().startswith("#include"):
                 workingline=workingline[9:].lstrip().split("'")[0].split(";")[0].rstrip()     #remove #include text, comments, and whitespace
                 workingline=workingline.strip('"')         #remove quotation marks around path
                 #print(workingline)
-                with open (outputpath+'/'+outputfilename, 'a') as output_file:
+                with open (outputfilename, 'a') as output_file:
                     output_file.write("'---BEGIN "+workingline+" ---\n")
-                progparse(workingline)
+                progparse(workingline,count+1,curfilename) # +1 for 0 indexing
             elif workingline.lower().startswith("#define"):     #Automatically substitute #defines
                 workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()
                 try:
                     definitions[workingline.split()[0]]=(workingline.split(None,1)[1])   #add to dictionary of definitions
                 except:
-                    print("old define found, leaving intact")
+                    print("Old define found, leaving intact")
                 
-                with open (outputpath+'/'+outputfilename, 'a') as output_file:
+                with open (outputfilename, 'a') as output_file:
                     output_file.write(line.rstrip()+"      'DEFINITION PARSED\n")
             elif workingline.lower().startswith("#picaxe"): # Set the picaxe chip
                 workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #picaxe text, comments, and whitespace
                 set_chip(workingline)
-                with open (outputpath+'/'+outputfilename, 'a') as output_file:
+                with open (outputfilename, 'a') as output_file:
                     output_file.write(line.rstrip()+"      'CHIP VERSION PARSED\n")
             elif workingline.lower().startswith("#com"): # Set the serial port
                 port = workingline[5:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #com text, comments, and whitespace
                 port = port.strip('"')         #remove quotation marks around path
                 print("Setting serial port to '{}'".format(port))
-                with open (outputpath+'/'+outputfilename, 'a') as output_file:
+                with open (outputfilename, 'a') as output_file:
                     output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
             elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
                 savingmacro=True
                 workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
                 macroname=workingline.split("(")[0].rstrip()
                 print(macroname)
-                with open (outputpath+outputfilename, 'a') as output_file:
+                with open (outputfilename, 'a') as output_file:
                     output_file.write("'PARSED MACRO "+macroname)
                 macrocontents=workingline.split("(")[1].rstrip()
                 macros[macroname]={}
@@ -280,7 +277,7 @@ def progparse(curfilename):
                     output_file.write(line)
                 #print line,
         #print "{0} line(s) printed".format(i+1)
-        with open (outputpath+'/'+outputfilename, 'a') as output_file:
+        with open (outputfilename, 'a') as output_file:
             output_file.write("\n'---END "+curfilename+"---\n")
     #print (definitions)
 

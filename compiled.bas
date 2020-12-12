@@ -1,7 +1,9 @@
 '-----PREPROCESSED BY picaxepreprocess.py-----
-'----UPDATED AT 10:07PM, December 10, 2020----
+'----UPDATED AT 01:50AM, December 13, 2020----
 '----SAVING AS compiled.bas ----
 
+'---BEGIN main.bas ---
+'main.bas is the default file included if no input argument passed
 '---BEGIN 1.bas ---
 
 goto init
@@ -72,3 +74,6 @@ main:
 goto main
 
 '---END 1.bas---
+sertxd ("ending main.bas")
+
+'---END main.bas---
