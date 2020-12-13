@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 # PICAXE #include, #define, and #macro preprocessor
 # todo: make defines behave like single line macros, allowing(parameters)
