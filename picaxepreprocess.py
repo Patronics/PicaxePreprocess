@@ -147,6 +147,7 @@ def main(argv):
         command.append(outputfilename)
 
         print()
+        print()
         print("Running compiler with command:")
         for i in command:
             print("{} ".format(i), end="")
@@ -156,6 +157,9 @@ def main(argv):
 
         if tidy: # Delete afterwards if needed
             os.remove(outputfilename)
+            err_file = outputfilename.replace("."+outputfilename.split(".")[-1],"") + ".err" # Calculate the name of the error file
+            os.remove(err_file)
+
 
     print()
     print("Done.")
