@@ -165,8 +165,8 @@ def main(argv):
         except FileNotFoundError:
             preprocessor_error("""The compiler was not found at '{}'.
 Are you sure you have downloaded the compilers from
-https://picaxe.com/software/drivers/picaxe-compilers/ and updated the compiler
-path in this script?""".format(command[0]))
+https://picaxe.com/software/drivers/picaxe-compilers/ and set the compiler
+path with -P?""".format(command[0]))
 
         if tidy: # Delete afterwards if needed
             os.remove(outputfilename)
