@@ -78,12 +78,12 @@ def main(argv):
     global compiler_path
 
     # Use the last argument as the file name if it does not start with a dash
-    if (len(argv) == 1 or len(argv) >= 2 and argv[-2] == "-i") and argv[-1][0] != "-": # Double check the second last is -i if needed
+    if (len(argv) == 1 or len(argv) >= 2 and argv[-2] not in ("-o", "-v", "-c")) and argv[-1][0] != "-": # Double check the second last is -i if needed
             # This is not a flag
             inputfilename = argv[-1]
             argv.pop() # Remove the last argument to stop it being confused for getopt
             if len(argv) and argv[-1] == "-i":
-                argv.pop()
+                argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
         opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath="])
@@ -160,7 +160,13 @@ def main(argv):
             print("{} ".format(i), end="")
         print()
         
-        subprocess.run(command)
+        try:
+            subprocess.run(command)
+        except FileNotFoundError:
+            preprocessor_error("""The compiler was not found at '{}'.
+Are you sure you have downloaded the compilers from
+https://picaxe.com/software/drivers/picaxe-compilers/ and updated the compiler
+path in this script?""".format(command[0]))
 
         if tidy: # Delete afterwards if needed
             os.remove(outputfilename)
