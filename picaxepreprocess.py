@@ -30,36 +30,37 @@ command = [""] # Empty string at the first position will be replaced by the comp
 tidy = False
 
 def print_help():
-    """ Prints the help message """
+    # Prints the help message 
     print("""
 picaxepreprocess.py [OPTIONS] [INPUTFILE]
 
 Optional switches
-    -i, --ifile=    Input file (default main.bas). Flag not required if it is
-                    the last argument given.
-    -o, --ofile=    Output file (default compiled.bas)
-    -u, --upload    Send the file to the compiler if this option is included.
-    -h, --help      Display this help
+    -i, --ifile=       Input file (default main.bas). Flag not required if it is
+                       the last argument given.
+    -o, --ofile=       Output file (default compiled.bas)
+    -u, --upload       Send the file to the compiler if this option is included.
+    -h, --help         Display this help
 
 Optional switches only used if sending to the compiler
-    -v, --variant=  Variant (default 08m2)
-                    (alternatively use #PICAXE directive within the program.
-                    This option will be ignored if #PICAXE is used)
-    -s, --syntax    Syntax check only (no download)
-    -f, --firmware  Firmware check only (no download)
-    -c, --comport=  Assign COM/USB port device (default /dev/ttyUSB0)
-                    (alternately use #COM directive within program. This option
-                    will be ignored if #COM is used). There should be a space
-                    between the -c and the port, unlike the compilers.
-    -d, --debug     Leave port open for debug display (b0-13)
-        --debughex  Leave port open for debug display (hex mode)
-    -e  --edebug    Leave port open for debug display (b14-b27)
-        --edebughex Leave port open for debug display (hex mode)
-    -t, --term      Leave port open for sertxd display
-        --termhex   Leave port open for sertxd display (hex mode)
-        --termint   Leave port open for sertxd display (int mode)
-    -p, --pass      Add pass message to error report file
-        --tidy      Remove the output file on completion if in upload mode.
+    -v, --variant=     Variant (default 08m2)
+                       (alternatively use #PICAXE directive within the program.
+                       This option will be ignored if #PICAXE is used)
+    -s, --syntax       Syntax check only (no download)
+    -f, --firmware     Firmware check only (no download)
+    -c, --comport=     Assign COM/USB port device (default /dev/ttyUSB0)
+                       (alternately use #COM directive within program. This option
+                       will be ignored if #COM is used). There should be a space
+                       between the -c and the port, unlike the compilers.
+    -d, --debug        Leave port open for debug display (b0-13)
+        --debughex     Leave port open for debug display (hex mode)
+    -e  --edebug       Leave port open for debug display (b14-b27)
+        --edebughex    Leave port open for debug display (hex mode)
+    -t, --term         Leave port open for sertxd display
+        --termhex      Leave port open for sertxd display (hex mode)
+        --termint      Leave port open for sertxd display (int mode)
+    -p, --pass         Add pass message to error report file
+        --tidy         Remove the output file on completion if in upload mode.
+    -P  --compilepath= specify the path to the compilers directory (defaults to /usr/local/lib/picaxe/)
 
 Preprocessor for PICAXE microcontrollers.
 See https://github.com/Patronics/PicaxePreprocess for more info.
@@ -74,6 +75,7 @@ def main(argv):
     global port
     global command
     global tidy
+    global compiler_path
 
     # Use the last argument as the file name if it does not start with a dash
     if (len(argv) == 1 or len(argv) >= 2 and argv[-2] == "-i") and argv[-1][0] != "-": # Double check the second last is -i if needed
@@ -84,7 +86,7 @@ def main(argv):
                 argv.pop()
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detp",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy"])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath="])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -101,6 +103,7 @@ def main(argv):
         elif opt in ("-v", "--variant"): # Picaxe variant
             set_chip(arg)
         elif opt in ("-s", "--syntax"): # Syntax only
+            send_to_compiler = True
             command.append("-s")
         elif opt in ("-f", "--firmware"): # Firmware check
             command.append("-f")
@@ -124,13 +127,14 @@ def main(argv):
             command.append("-p")
         elif opt in ("--tidy"): # Remove the output file afterwards
             tidy = True
-
-        
+        elif opt in ("-P", "--compilepath"): #chose non-default path to compilers
+            compiler_path = os.path.join(arg,'') #adds trailing slash if needed
     if not os.path.exists(inputfilename):
         preprocessor_error("'{}/{}' does not exist. Either specify an input file or put it in the same folder as this script with the name 'main.bas'".format(os.getcwd(), inputfilename))
 
     print('Input file is ', inputfilename)
-    print('Output file is ', outputfilename, '\n')
+    print('Output file is ', outputfilename)
+    print('Using compilers at ', compiler_path , '\n')
     # Python should hopefully keep the same working directory as the shell, so do not need to change it?
     inputfile = inputfilename.replace("\\","/").split("/")[-1] # Get just the file name.
     with open (outputfilename, 'w') as output_file:   #desribe output file info at beginning in comments
@@ -141,6 +145,9 @@ def main(argv):
     progparse(inputfile)   #begin parsing input file into output
 
     if send_to_compiler:
+        if not os.path.exists(compiler_path):
+            preprocessor_error("'{}' does not exist. Either specify a valid compilers directory or put them in '/usr/local/lib/picaxe/'".format(compiler_path))
+
         # Calling the correct compiler
         command[0] = "{}{}{}{}".format(compiler_path, compiler_name, chip, compiler_extension)
         command.append("-c{}".format(port))
