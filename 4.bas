@@ -7,6 +7,7 @@
        Gosub SendHeadingSpeed
 #ENDMACRO
 
+#cOm /dev/null
 
 SendHeadingSpeed:
 	return

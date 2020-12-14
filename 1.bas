@@ -6,6 +6,9 @@ goto init
 #define testing
 #define message sertxd("New Define")
 
+'the following line demonstrates specifiying a picaxe variant in-line
+'#picaxe 18M2
+
 init:
 toggle 1
 main:
