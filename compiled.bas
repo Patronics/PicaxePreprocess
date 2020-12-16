@@ -1,5 +1,5 @@
 '-----PREPROCESSED BY picaxepreprocess.py-----
-'----UPDATED AT 01:32PM, December 13, 2020----
+'----UPDATED AT 12:30PM, December 16, 2020----
 '----SAVING AS compiled.bas ----
 
 '---BEGIN main.bas ---
@@ -31,8 +31,8 @@ SendHeadingSpeed:
 '--END OF MACRO: Assign( w0, 1 * 2 + 3 )
 
 testloop:
-	sertxd("83838838")      'DEFINE: "83838838" SUBSTITUTED FOR MAGIC_NUMBER
-	b0 =255 : toggle 2      'DEFINE: b0 =255 : toggle 2 SUBSTITUTED FOR SetBackLedOn
+	sertxd(MAGIC_NUMBER)
+	SetBackLedOn
 	'--START OF MACRO: SerialMacro
 
 sertxd("this is a macro :)", "37")
@@ -47,7 +47,8 @@ return
 #define testing      'DEFINITION PARSED
 #define message sertxd("New Define")      'DEFINITION PARSED
 
-#picaxe 18M2      'CHIP VERSION PARSED
+'the following line demonstrates specifiying a picaxe variant in-line
+'#picaxe 18M2
 
 init:
 toggle 1

@@ -6,6 +6,8 @@
 # Created by Patrick Leiser, edited by Jotham Gates
 # Run this script with no options for usage information.
 # TODO: Friendlier error detection and explanations
+# TODO: Ignore code in between #rem and endrem
+# TODO: Handle evaluation of ifs
 
 import sys, getopt, os, datetime, re, os.path, subprocess
 inputfilename = 'main.bas'
@@ -39,6 +41,8 @@ Optional switches
                        the last argument given.
     -o, --ofile=       Output file (default compiled.bas)
     -u, --upload       Send the file to the compiler if this option is included.
+    -s, --syntax       Send the file to the compiler for a syntax check only (no download)
+        --nocolor      Disable terminal colour for systems that do not support it (Windows).
     -h, --help         Display this help
 
 Optional switches only used if sending to the compiler
@@ -76,6 +80,7 @@ def main(argv):
     global command
     global tidy
     global compiler_path
+    global use_colour
 
     # Use the last argument as the file name if it does not start with a dash
     if (len(argv) == 1 or len(argv) >= 2 and argv[-2] not in ("-o", "-v", "-c")) and argv[-1][0] != "-": # Double check the second last is -i if needed
@@ -86,12 +91,15 @@ def main(argv):
                 argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath="])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor"])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
     for opt, arg in opts:
-        if opt in ("-h", "--help"):
+        if opt == "--nocolor":
+            use_colour = False
+            print("No colour")
+        elif opt in ("-h", "--help"):
             print_help()
             sys.exit()
         elif opt in ("-i", "--ifile"):
@@ -261,9 +269,10 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
             else:
                 for key,value in definitions.items():
                     if key in line:
-                        #print("substituting definition")
-                        line=line.replace(key,value)
-                        line=line.rstrip()+"      'DEFINE: "+value+" SUBSTITUTED FOR "+key+"\n"
+                        print("Replacing '{}' with ".format(line.strip(), end=""))
+                        line=re.sub(r"\b{}\b".format(key), value,line.rstrip()) # Replace whole words only
+                        print("'{}'".format(line))
+                        line=line+"      'DEFINE: "+value+" SUBSTITUTED FOR "+key+"\n"
                 for key, macrovars in macros.items():
                     if key in line:
                         params={}
