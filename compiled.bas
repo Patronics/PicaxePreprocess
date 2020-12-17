@@ -1,5 +1,5 @@
 '-----PREPROCESSED BY picaxepreprocess.py-----
-'----UPDATED AT 12:30PM, December 16, 2020----
+'----UPDATED AT 10:01PM, December 17, 2020----
 '----SAVING AS compiled.bas ----
 
 '---BEGIN main.bas ---
@@ -31,8 +31,8 @@ SendHeadingSpeed:
 '--END OF MACRO: Assign( w0, 1 * 2 + 3 )
 
 testloop:
-	sertxd(MAGIC_NUMBER)
-	SetBackLedOn
+	sertxd("83838838")      'DEFINE: "83838838" SUBSTITUTED FOR MAGIC_NUMBER
+	b0 =255 : toggle 2      'DEFINE: b0 =255 : toggle 2 SUBSTITUTED FOR SetBackLedOn
 	'--START OF MACRO: SerialMacro
 
 sertxd("this is a macro :)", "37")

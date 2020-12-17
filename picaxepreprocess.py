@@ -8,6 +8,22 @@
 # TODO: Friendlier error detection and explanations
 # TODO: Ignore code in between #rem and endrem
 # TODO: Handle evaluation of ifs
+# TODO: Not replace if inside a string or a comment
+# TODO: IGNORE PARAM IN MACRO???
+
+# C:\Users\koyug\Documents\GitHub\PicaxePreprocess\picaxepreprocess.py --nocolor -P"C:\Program Files (x86)\Revolution Education\PICAXE Editor\Compilers\\" -v14m2 -s .\20201215_PreprocessorTest.bas
+# "C:\Program Files (x86)\Revolution Education\PICAXE Editor\Compilers\picaxe14m2.exe" -s .\20201215_PreprocessorTest.bas
+# >>> def ifi(i):
+# ...     i = i.replace("<>", "!=")
+# ...     return eval(i)
+# ...
+# >>> ifi("1>2")
+# False
+# >>> ifi("3>2")
+# True
+# >>> ifi("3<>2")
+# True
+# >>>
 
 import sys, getopt, os, datetime, re, os.path, subprocess
 inputfilename = 'main.bas'
@@ -98,7 +114,6 @@ def main(argv):
     for opt, arg in opts:
         if opt == "--nocolor":
             use_colour = False
-            print("No colour")
         elif opt in ("-h", "--help"):
             print_help()
             sys.exit()
@@ -152,6 +167,7 @@ def main(argv):
         output_file.write("'---BEGIN "+inputfilename+" ---\n")
     progparse(inputfile)   #begin parsing input file into output
 
+    # TODO: Repeat progpass with the previously compiled file until there is no #IF or #IFDEF left (allows for ifs in macros and after substitution)
     if send_to_compiler:
         if not os.path.exists(compiler_path):
             preprocessor_error("'{}' does not exist. Either specify a valid compilers directory or put them in '/usr/local/lib/picaxe/'".format(compiler_path))
@@ -203,76 +219,27 @@ def progparse(curfilename, called_from_line=None, called_from_file=None):
     if not os.path.exists(curpath + curfilename):
         preprocessor_error("""Call to include '{}{}' which does not exist.
 Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, called_from_file))
+    in_block_comment = False
     with open(curpath + curfilename) as input_file:
         for count, line in enumerate(input_file):
             workingline=line.lstrip()
-            if workingline.lower().startswith("#include"):
-                workingline=workingline[9:].lstrip().split("'")[0].split(";")[0].rstrip()     #remove #include text, comments, and whitespace
-                workingline=workingline.strip('"')         #remove quotation marks around path
-                #print(workingline)
-                with open (outputfilename, 'a') as output_file:
-                    output_file.write("'---BEGIN "+workingline+" ---\n")
-                progparse(workingline,count+1,curfilename) # +1 for 0 indexing
-            elif workingline.lower().startswith("#define"):     #Automatically substitute #defines
-                workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()
-                try:
-                    definitions[workingline.split()[0]]=(workingline.split(None,1)[1])   #add to dictionary of definitions
-                except:
-                    print("Old define found, leaving intact")
+            # Check if we are in a block comment
+            if workingline.lower().startswith("#rem"):
+                in_block_comment = True
+            elif workingline.lower().startswith("#endrem"):
+                in_block_comment = False
                 
+            if in_block_comment or workingline.lower().startswith("#endrem"):
                 with open (outputfilename, 'a') as output_file:
-                    output_file.write(line.rstrip()+"      'DEFINITION PARSED\n")
-            elif workingline.lower().startswith("#picaxe"): # Set the picaxe chip
-                workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #picaxe text, comments, and whitespace
-                set_chip(workingline)
-                with open (outputfilename, 'a') as output_file:
-                    output_file.write(line.rstrip()+"      'CHIP VERSION PARSED\n")
-            elif workingline.lower().startswith("#com"): # Set the serial port
-                port = workingline[5:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #com text, comments, and whitespace
-                port = port.strip('"')         #remove quotation marks around path
-                print("Setting serial port to '{}'".format(port))
-                with open (outputfilename, 'a') as output_file:
-                    output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
-            elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
-                savingmacro=True
-                workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
-                macroname=workingline.split("(")[0].rstrip()
-                print(macroname)
-                with open (outputfilename, 'a') as output_file:
-                    output_file.write("'PARSED MACRO "+macroname)
-                macrocontents=workingline.split("(")[1].rstrip()
-                macros[macroname]={}
-                argnum=0
-                while(1):
-                    argnum+=1
-                    if macrocontents.strip()==")":
-                        print("no parameters to macro")
-                        macros[macroname][0]="'Start of macro: "+macroname
-                        print(macros)
-                        break
-                    else:
-                        macrocontents=macrocontents.rstrip(")").strip("(")
-                        macros[macroname][argnum]=macrocontents.split(",")[0].rstrip()   #create spot in dictionary for macro variables, but don't populate yet
-                        if "," in macrocontents:
-                            macrocontents=macrocontents.split(",")[1].strip().rstrip()
-                        else:
-                            print("finished parsing macro contents")
-                            macros[macroname][0]="'--START OF MACRO: "+macroname+"\n"
-                            break
-            elif savingmacro==True:
-                if workingline.lower().startswith("#endmacro"):
-                    savingmacro=False
-                    macros[macroname][0]=macros[macroname][0]+"'--END OF MACRO: "+macroname
-                    #print macros
-                else:
-                    macros[macroname][0]=macros[macroname][0]+line
+                    output_file.write("; {} [Commented out]\n".format(line.rstrip()))
             else:
+                # Substitute defines (before it is added)
                 for key,value in definitions.items():
-                    if key in line:
+                    if key in line:                        #line=re.sub(r"\b{}\b".format(key), value,line.rstrip()) # Replace whole words only
                         print("Replacing '{}' with ".format(line.strip(), end=""))
-                        line=re.sub(r"\b{}\b".format(key), value,line.rstrip()) # Replace whole words only
+                        line = replace(key, value,line) # Replace whole words only
                         print("'{}'".format(line))
-                        line=line+"      'DEFINE: "+value+" SUBSTITUTED FOR "+key+"\n"
+                        # line=line+"      'DEFINE: "+value+" SUBSTITUTED FOR "+key+"\n"
                 for key, macrovars in macros.items():
                     if key in line:
                         params={}
@@ -297,17 +264,109 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         for num, name in macrovars.items():
                                 if name in line:
                                     if num>0:
+                                        # TODO: Use replace function for macros
                                         line=re.sub(r"\b%s\b" % name,params[num],line)
                         line=line[:line.rfind(")", 0, line.rfind(")"))]+line[line.rfind(")", 0, line.rfind(")"))+1:]
-                with open (outputpath+outputfilename, 'a') as output_file:
-                    output_file.write(line)
-                #print line,
+
+
+                # Preprocessor check
+                if workingline.lower().startswith("#include"):
+                    workingline=workingline[9:].lstrip().split("'")[0].split(";")[0].rstrip()     #remove #include text, comments, and whitespace
+                    workingline=workingline.strip('"')         #remove quotation marks around path
+                    #print(workingline)
+                    with open (outputfilename, 'a') as output_file:
+                        output_file.write("'---BEGIN "+workingline+" ---\n")
+                    progparse(workingline,count+1,curfilename) # +1 for 0 indexing
+                elif workingline.lower().startswith("#define"):     #Automatically substitute #defines
+                    workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()
+                    try:
+                        definitions[workingline.split()[0]]=(workingline.split(None,1)[1])   #add to dictionary of definitions
+                    except:
+                        print("Old define found, leaving intact")
+                    
+                    with open (outputfilename, 'a') as output_file:
+                        output_file.write(line.rstrip()+"      'DEFINITION PARSED\n")
+                elif workingline.lower().startswith("#picaxe"): # Set the picaxe chip
+                    workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #picaxe text, comments, and whitespace
+                    set_chip(workingline)
+                    with open (outputfilename, 'a') as output_file:
+                        output_file.write(line.rstrip()+"      'CHIP VERSION PARSED\n")
+                elif workingline.lower().startswith("#com"): # Set the serial port
+                    port = workingline[5:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #com text, comments, and whitespace
+                    port = port.strip('"')         #remove quotation marks around path
+                    print("Setting serial port to '{}'".format(port))
+                    with open (outputfilename, 'a') as output_file:
+                        output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
+                elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
+                    savingmacro=True
+                    workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
+                    macroname=workingline.split("(")[0].rstrip()
+                    print(macroname)
+                    with open (outputfilename, 'a') as output_file:
+                        output_file.write("'PARSED MACRO "+macroname)
+                    macrocontents=workingline.split("(")[1].rstrip()
+                    macros[macroname]={}
+                    argnum=0
+                    while(1):
+                        argnum+=1
+                        if macrocontents.strip()==")":
+                            print("no parameters to macro")
+                            macros[macroname][0]="'Start of macro: "+macroname
+                            print(macros)
+                            break
+                        else:
+                            macrocontents=macrocontents.rstrip(")").strip("(")
+                            macros[macroname][argnum]=macrocontents.split(",")[0].rstrip()   #create spot in dictionary for macro variables, but don't populate yet
+                            if "," in macrocontents:
+                                macrocontents=macrocontents.split(",")[1].strip().rstrip()
+                            else:
+                                print("finished parsing macro contents")
+                                macros[macroname][0]="'--START OF MACRO: "+macroname+"\n"
+                                break
+                elif savingmacro==True:
+                    if workingline.lower().startswith("#endmacro"):
+                        savingmacro=False
+                        macros[macroname][0]=macros[macroname][0]+"'--END OF MACRO: "+macroname
+                        #print macros
+                    else:
+                        macros[macroname][0]=macros[macroname][0]+line
+                else:
+                    with open (outputpath+outputfilename, 'a') as output_file:
+                        output_file.write(line)
+                    #print line,
         #print "{0} line(s) printed".format(i+1)
         with open (outputfilename, 'a') as output_file:
             output_file.write("\n'---END "+curfilename+"---\n")
     #print (definitions)
 
-def set_chip(new_chip):
+def replace(key: str, value: str, line: str) -> str:
+    """ Replaces a key with a value in a line if it is not in a string or a comment and is a whole
+    word.
+    
+    Complexity is pretty bad, so might take a while if the line is vvveeeerrrrryyyyyy long.
+    """
+    i = 0
+    in_string = False
+    in_comment = False
+    while i < len(line) - len(key): # Line length may change, so re evaluate each time
+        if(line[i] == "\""):
+            # Start or end of a string
+            in_string = not in_string
+        elif(line[i] == "'" or line[i] == ";"):
+            # Start of a comment
+            in_comment = True
+        elif not in_comment and not in_string:
+            # We can check for the key starting at this position
+            if (line[i:i+len(key)] == key) and not (i > 0 and (line[i-1].isalpha() or line[i-1] == "_")) and not (i+len(key) < len(line) and (line[i+len(key)].isalpha() or line[i+len(key)] == "_" or line[i+len(key)].isnumeric())):
+                line = line[:i] + str(value) + line[i+len(key):] # Replace that appearance
+            pass
+
+
+        i += 1
+    
+    return line
+
+def set_chip(new_chip: str) -> None:
     """ Validates and selects the compiler to use.
     This needs to be validated as it will be used to run a command line program, so do not want to
     inject malicious code (although should they already have access to the command line directly if
