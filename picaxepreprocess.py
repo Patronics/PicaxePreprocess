@@ -9,7 +9,8 @@
 # TODO: Ignore code in between #rem and endrem
 # TODO: Handle evaluation of ifs
 # TODO: Not replace if inside a string or a comment
-# TODO: IGNORE PARAM IN MACRO???
+# TODO: IGNORE PARAM IN MACRO NAME???
+# TODO: Allow redefine in top
 
 # C:\Users\koyug\Documents\GitHub\PicaxePreprocess\picaxepreprocess.py --nocolor -P"C:\Program Files (x86)\Revolution Education\PICAXE Editor\Compilers\\" -v14m2 -s .\20201215_PreprocessorTest.bas
 # "C:\Program Files (x86)\Revolution Education\PICAXE Editor\Compilers\picaxe14m2.exe" -s .\20201215_PreprocessorTest.bas
@@ -83,7 +84,7 @@ Optional switches only used if sending to the compiler
     -P  --compilepath= specify the path to the compilers directory (defaults to /usr/local/lib/picaxe/)
 
 Preprocessor for PICAXE microcontrollers.
-See https://github.com/Patronics/PicaxePreprocess for more info.
+See https://github.com/Patronics/PicaxePreprocess fo$RECYCLE.BINr more info.
 """)
 
 def main(argv):
@@ -233,11 +234,11 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                 with open (outputfilename, 'a') as output_file:
                     output_file.write("; {} [Commented out]\n".format(line.rstrip()))
             else:
-                # Substitute defines (before it is added)
+                # Substitute defines (before it is added so that the define itself is not replaced)
                 for key,value in definitions.items():
-                    if key in line:                        #line=re.sub(r"\b{}\b".format(key), value,line.rstrip()) # Replace whole words only
+                    if key in line:
                         print("Replacing '{}' with ".format(line.strip(), end=""))
-                        line = replace(key, value,line) # Replace whole words only
+                        line = replace(key, value,line) # Replace whole words only that are not in strings or comments
                         print("'{}'".format(line))
                         # line=line+"      'DEFINE: "+value+" SUBSTITUTED FOR "+key+"\n"
                 for key, macrovars in macros.items():
@@ -245,28 +246,30 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         params={}
                         argnum=0
                         macrocontents=line.split(key)[1]
-                        macrocontents=macrocontents.strip("(").strip(")")
+                        macrocontents=macrocontents.strip().strip("(").strip(")")
                         while(1):
                             argnum+=1
                         
                             if "," in macrocontents:
                                 params[argnum]=macrocontents.split(",")[0].rstrip()   #
                                 
-                                macrocontents=macrocontents.split(",")[1].strip().rstrip()
+                                macrocontents=macrocontents.split(",")[1].strip() # Remove the first parameter nd try again 
                             else:
                                 print("finished parsing macro contents")
                                 params[argnum]=macrocontents.split(",")[0].rstrip()
                                 #params[argnum]=params[argnum].strip("(").strip(")").strip()
                                 print(params)
                                 break
-                        line=line.replace(key,macrovars[0])
+                        line = replace(key, macrovars[0], line)
                         print(macrovars)
                         for num, name in macrovars.items():
                                 if name in line:
                                     if num>0:
-                                        # TODO: Use replace function for macros
-                                        line=re.sub(r"\b%s\b" % name,params[num],line)
-                        line=line[:line.rfind(")", 0, line.rfind(")"))]+line[line.rfind(")", 0, line.rfind(")"))+1:]
+                                        line = replace(name, params[num], line)
+                        
+                        #print("LINE BEFORE FIND: " + line)
+                        #line=line[:line.rfind(")", 0, line.rfind(")"))]+line[line.rfind(")", 0, line.rfind(")"))+1:]
+                        #print("LINE AFTER FIND: " + line)
 
 
                 # Preprocessor check
@@ -285,7 +288,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         print("Old define found, leaving intact")
                     
                     with open (outputfilename, 'a') as output_file:
-                        output_file.write(line.rstrip()+"      'DEFINITION PARSED\n")
+                        output_file.write(line.rstrip()+"\n")
                 elif workingline.lower().startswith("#picaxe"): # Set the picaxe chip
                     workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #picaxe text, comments, and whitespace
                     set_chip(workingline)
@@ -327,17 +330,13 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     if workingline.lower().startswith("#endmacro"):
                         savingmacro=False
                         macros[macroname][0]=macros[macroname][0]+"'--END OF MACRO: "+macroname
-                        #print macros
                     else:
                         macros[macroname][0]=macros[macroname][0]+line
                 else:
                     with open (outputpath+outputfilename, 'a') as output_file:
                         output_file.write(line)
-                    #print line,
-        #print "{0} line(s) printed".format(i+1)
         with open (outputfilename, 'a') as output_file:
             output_file.write("\n'---END "+curfilename+"---\n")
-    #print (definitions)
 
 def replace(key: str, value: str, line: str) -> str:
     """ Replaces a key with a value in a line if it is not in a string or a comment and is a whole
@@ -348,22 +347,22 @@ def replace(key: str, value: str, line: str) -> str:
     i = 0
     in_string = False
     in_comment = False
-    while i < len(line) - len(key): # Line length may change, so re evaluate each time
+    while i < len(line) - len(key) and len(line) >= len(key): # Line length may change, so re evaluate each time
         if(line[i] == "\""):
             # Start or end of a string
             in_string = not in_string
         elif(line[i] == "'" or line[i] == ";"):
             # Start of a comment
             in_comment = True
+        elif(line[i] == "\n"):
+            # New line. Reset comment
+            in_comment = False
         elif not in_comment and not in_string:
             # We can check for the key starting at this position
             if (line[i:i+len(key)] == key) and not (i > 0 and (line[i-1].isalpha() or line[i-1] == "_")) and not (i+len(key) < len(line) and (line[i+len(key)].isalpha() or line[i+len(key)] == "_" or line[i+len(key)].isnumeric())):
                 line = line[:i] + str(value) + line[i+len(key):] # Replace that appearance
-            pass
-
-
+                i += len(value) # Skip over the value we replaced it with
         i += 1
-    
     return line
 
 def set_chip(new_chip: str) -> None:
