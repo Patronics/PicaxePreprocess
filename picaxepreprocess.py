@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 # PICAXE #include, #define, and #macro preprocessor
-# todo: make defines behave like single line macros, allowing(parameters)
-# todo: more thoroughly test macro behaviors, especially with parentheses
+# TODO: make defines behave like single line macros, allowing(parameters)
+# TODO: more thoroughly test macro behaviors, especially with parentheses
 # Created by Patrick Leiser, edited by Jotham Gates
 # Run this script with no options for usage information.
 # TODO: Friendlier error detection and explanations
@@ -12,6 +12,9 @@
 # TODO: Break into 3 tiers of comments > ifs > everything else
 # TODO: Is a directory error for files
 # TODO: Debug levels
+# TODO: #UNDEF
+# TODO: Remove extra comment ; added for ifs
+
 
 # >>> def ifi(i):
 # ...     i = i.replace("<>", "!=")
@@ -28,10 +31,14 @@
 import sys, getopt, os, datetime, re, os.path, subprocess
 inputfilename = 'main.bas'
 outputfilename = 'compiled.bas'
-outputpath=""
-definitions=dict()
-macros=dict()
-if_stack = [] # List to be use as a stack for whetehr code should be included
+outputpath = ""
+definitions = dict()
+macros = dict()
+if_stack = [] # List to be use as a stack for whether code should be included.
+# If the current block of code should be included, the last element is True and False if it is to be
+# commented out. If there are no ifs, the stack is empty.
+# Contains a tuple with (code_active, ignore_elseif) - ignore_elseif is so that any else of elseif
+# after a true line is found is ignored and not included.
 
 use_colour = True # Does not work on Windows, will end up with a lot of nonsense characters when
                   # showing an error.
@@ -168,8 +175,9 @@ def main(argv):
         output_file.write("'----SAVING AS "+outputfilename+" ----\n\n")
         output_file.write("'---BEGIN "+inputfilename+" ---\n")
     progparse(inputfile)   #begin parsing input file into output
+    if len(if_stack):
+            preprocessor_error("Too many ifs or not enough endifs at the end of processing")
 
-    # TODO: Repeat progpass with the previously compiled file until there is no #IF or #IFDEF left (allows for ifs in macros and after substitution)
     if send_to_compiler:
         if not os.path.exists(compiler_path):
             preprocessor_error("'{}' does not exist. Either specify a valid compilers directory or put them in '/usr/local/lib/picaxe/'".format(compiler_path))
@@ -231,32 +239,49 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
             elif workingline.lower().startswith("#endrem"):
                 in_block_comment = False
 
+            # Only continue parsing the line if it is not part of a block comment
             if in_block_comment or workingline.lower().startswith("#endrem"):
                 with open (outputfilename, 'a') as output_file:
                     output_file.write("; {} [Commented out]\n".format(line.rstrip()))
             else:
+                # Process ifdef, ifndef, else and endif. If not one of them, proceed with substituting defines.
                 if workingline.lower().startswith("#ifdef"):
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
-                    if_stack.append(is_if_active(1) and key in definitions)
+                    active = is_if_active(1) and key in definitions
+                    if_stack.append((active, active))
                     print("{}: #ifdef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
                 elif workingline.lower().startswith("#ifndef"):
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
-                    if_stack.append(is_if_active(1) and not key in definitions)
+                    active = is_if_active(1) and key not in definitions
+                    if_stack.append((active, active))
                     print("{}: #ifndef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
                 # Ifs will be treated separately later after definitions are substituted.
-                elif workingline.lower().startswith("#else"): # ELSE and ELSEIF
+                elif workingline.lower().startswith("#elseifdef"): # ELSE and ELSEIF
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many elses or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
-                    elif workingline.lower().startswith("#elseifdef"):
-                        preprocessor_warning("ELSEIFDEF Not implemented")
-                    elif workingline.lower().startswith("#elseifndef"):
-                        preprocessor_warning("ELSEIFNDEF Not implemented")
-                    elif len(workingline.strip()) == 5: # Else only - not elseif
-                        if_stack[-1] = is_if_active(1) and not if_stack[-1]
-                        print("{}: #else. Stack is now: {}".format(count+1, if_stack))
+                    key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
+                    active = is_if_active(1) and not if_stack[-1][1] and key in definitions
+                    if_stack[-1] = (active, if_stack[-1][1] or active)
+                    line = "; {}".format(line)
+                    print("{}: #elseifdef. Stack is now: {}".format(count+1, if_stack))
+                elif workingline.lower().startswith("#elseifndef"):
+                    if len(if_stack) == 0:
+                        preprocessor_error("""Too many elses or not enough ifs.
+    Error is before or at line {} in '{}'.""".format(count+1,curfilename))
+                    key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
+                    active = is_if_active(1) and not if_stack[-1][1] and key not in definitions
+                    if_stack[-1] = (active, if_stack[-1][1] or active)
+                    line = "; {}".format(line)
+                    print("{}: #elseifndef. Stack is now: {}".format(count+1, if_stack))
+                elif workingline.lower().startswith("#else") and len(workingline.strip().split()[0]) == 5: # Else only - not elseif
+                    if len(if_stack) == 0:
+                        preprocessor_error("""Too many elses or not enough ifs.
+    Error is before or at line {} in '{}'.""".format(count+1,curfilename))
+                    if_stack[-1] = (is_if_active(1) and not if_stack[-1][1], True)
+                    print("{}: #else. Stack is now: {}".format(count+1, if_stack))
                     # elsif only will be evaluated after definitions are substituted.
                     line = "; {}".format(line)
                 elif workingline.lower().startswith("#endif"):
@@ -292,7 +317,6 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                                 else:
                                     print("finished parsing macro contents")
                                     params[argnum]=macrocontents.split(",")[0].rstrip()
-                                    #params[argnum]=params[argnum].strip("(").strip(")").strip()
                                     print(params)
                                     break
                             line = replace(key, macrovars[0], line)
@@ -302,14 +326,21 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                                         if num>0:
                                             line = replace(name, params[num], line)
 
-                    # TODO: Process ifs with evaluation and comparison
+                    # Process ifs with evaluation and comparison
+                    print("Line {}: {}".format(count + 1, workingline.strip()))
                     if workingline.lower().startswith("#if "):
-                        preprocessor_warning("#ifs with evaluation not yet implemented. Assuming it evaluates to True.")
-                        # equation = 
-                        if_stack.append(True)
+                        active = is_if_active(1) and evaluate_basic(line.lstrip()[4:], count + 1, curfilename)
+                        if_stack.append((active, active))
                         line = "; {}".format(line)
                         print("{}: #if. Stack is now: {}".format(count+1, if_stack))
-                    
+                    elif workingline.lower().startswith("#elseif "):
+                        if len(if_stack) == 0:
+                            preprocessor_error("""Not enough ifs.
+    Error is before or at line {} in '{}'.""".format(count+1,curfilename))
+                        active = is_if_active(1) and not if_stack[-1][1] and evaluate_basic(line.lstrip()[8:], count + 1, curfilename)
+                        if_stack[-1] = (active, if_stack[-1][1] or active)
+                        print("{}: #elseif. Stack is now: {}".format(count+1, if_stack))
+
                 if is_if_active(0):
                     # Preprocessor check
                     if workingline.lower().startswith("#include"):
@@ -389,17 +420,34 @@ Message: {}
                         output_file.write("; {} [#IF CODE REMOVED]\n".format(line.rstrip()))
         with open (outputfilename, 'a') as output_file:
             output_file.write("\n'---END "+curfilename+"---\n")
-        
-        # TODO: Throw an error if the stack of ifs is not empty
 
 def is_if_active(level: int):
     """ Returns True if the code in the given level should be included.
     
     The top of the if stack is level 0, the parent above is 1, ...
     """
-    return level >= len(if_stack) or if_stack[-1-level]
+    return level >= len(if_stack) or if_stack[-1-level][0]
 
+def evaluate_basic(equation: str, line_num: str, curfilename: str):
+    """ Evaluates in basic syntax.
+    :param equation: The basic formatted expression to evaluate (e.g. ').
+    :param line_num: The line number the expression is found on from for an error message if
+                     required.
+    :param curfilename: The filename that the expression is in from for an error message if required.
 
+    :returns: The result from the eval() function - may be a bool or a number.
+    """
+    equation = equation.lstrip().replace("'",";",1) # Make the comment consistant so it can be removed. Also use line so that the replacements from before are used
+    equation = equation[:equation.find(";")] # Strip the comment
+    if "!=" not in equation: # Convert basic equals and not equals to python - assumes only a single comparison in the equation
+        equation = equation.replace("=","==")
+    equation = equation.replace("<>","!=")
+    try:
+        is_true = eval(equation)
+    except Exception as e:
+        preprocessor_error("""Could not evaluate '{}' on line {} of '{}'.
+Exception: '{}'""".format(equation, line_num, curfilename, e))
+    return is_true
 
 def replace(key: str, value: str, line: str) -> str:
     """ Replaces a key with a value in a line if it is not in a string or a comment and is a whole
@@ -478,4 +526,3 @@ def preprocessor_warning(msg):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-    
