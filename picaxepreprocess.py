@@ -6,27 +6,9 @@
 # Created by Patrick Leiser, edited by Jotham Gates
 # Run this script with no options for usage information.
 # TODO: Friendlier error detection and explanations
-# TODO: Handle evaluation of ifs
-# TODO: IGNORE PARAM IN MACRO NAME???
-# TODO: Allow redefine in top
-# TODO: Break into 3 tiers of comments > ifs > everything else
 # TODO: Is a directory error for files
 # TODO: Debug levels
-# TODO: #UNDEF
 # TODO: Remove extra comment ; added for ifs
-
-
-# >>> def ifi(i):
-# ...     i = i.replace("<>", "!=")
-# ...     return eval(i)
-# ...
-# >>> ifi("1>2")
-# False
-# >>> ifi("3>2")
-# True
-# >>> ifi("3<>2")
-# True
-# >>>
 
 import sys, getopt, os, datetime, re, os.path, subprocess
 inputfilename = 'main.bas'
@@ -229,6 +211,9 @@ def progparse(curfilename, called_from_line=None, called_from_file=None):
     if not os.path.exists(curpath + curfilename):
         preprocessor_error("""Call to include '{}{}' which does not exist.
 Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, called_from_file))
+    if os.path.isdir(curpath + curfilename):
+        preprocessor_error("""Call to include '{}{}' which is a directory.
+Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, called_from_file))
     in_block_comment = False
     with open(curpath + curfilename) as input_file:
         for count, line in enumerate(input_file):
@@ -292,6 +277,14 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         if_stack.pop()
                     print("{}: #endif. Stack afterwards is: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
+                elif workingline.lower().startswith("#undef"): # Put undef up here so that substitutions happen afterwards
+                    workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
+                    try:
+                        del definitions[workingline.split()[0]]
+                    except KeyError:
+                        preprocessor_warning("{} was not defined originally to undefine on line {} in '{}'.".format(workingline.split()[0], count + 1, curfilename))
+
+                    line = "; {}".format(line) # The compilers have not implemented this, so comment it out.
                 else:
                     # Only substitute if the name of the define is not important
                     # Substitute defines (before it is added so that the define itself is not replaced)
@@ -327,7 +320,6 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                                             line = replace(name, params[num], line)
 
                     # Process ifs with evaluation and comparison
-                    print("Line {}: {}".format(count + 1, workingline.strip()))
                     if workingline.lower().startswith("#if "):
                         active = is_if_active(1) and evaluate_basic(line.lstrip()[4:], count + 1, curfilename)
                         if_stack.append((active, active))
@@ -360,7 +352,9 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                             definitions[workingline.split()[0]] = workingline.split()[0]
                         
                         with open (outputfilename, 'a') as output_file:
-                            output_file.write(line.rstrip()+"\n")
+                            output_file.write("; " + line.rstrip()+"\n") # Comment out to make sure
+                            # this script does all processing and there isn't the risk of the
+                            # compilers stuffing something up later.
                     elif workingline.lower().startswith("#picaxe"): # Set the picaxe chip
                         workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #picaxe text, comments, and whitespace
                         set_chip(workingline)
