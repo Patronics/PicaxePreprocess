@@ -6,14 +6,13 @@
 # Created by Patrick Leiser, edited by Jotham Gates
 # Run this script with no options for usage information.
 # TODO: Friendlier error detection and explanations
-# TODO: Ignore code in between #rem and endrem
 # TODO: Handle evaluation of ifs
-# TODO: Not replace if inside a string or a comment
 # TODO: IGNORE PARAM IN MACRO NAME???
 # TODO: Allow redefine in top
+# TODO: Break into 3 tiers of comments > ifs > everything else
+# TODO: Is a directory error for files
+# TODO: Debug levels
 
-# C:\Users\koyug\Documents\GitHub\PicaxePreprocess\picaxepreprocess.py --nocolor -P"C:\Program Files (x86)\Revolution Education\PICAXE Editor\Compilers\\" -v14m2 -s .\20201215_PreprocessorTest.bas
-# "C:\Program Files (x86)\Revolution Education\PICAXE Editor\Compilers\picaxe14m2.exe" -s .\20201215_PreprocessorTest.bas
 # >>> def ifi(i):
 # ...     i = i.replace("<>", "!=")
 # ...     return eval(i)
@@ -32,6 +31,8 @@ outputfilename = 'compiled.bas'
 outputpath=""
 definitions=dict()
 macros=dict()
+if_stack = [] # List to be use as a stack for whetehr code should be included
+
 use_colour = True # Does not work on Windows, will end up with a lot of nonsense characters when
                   # showing an error.
 
@@ -208,7 +209,7 @@ def progparse(curfilename, called_from_line=None, called_from_file=None):
     global chip
     global port
     savingmacro=False
-    print("Including file " + curfilename)
+    print("\nIncluding file " + curfilename)
     path=os.path.dirname(os.path.abspath(inputfilename))+"/"
     if curfilename.startswith("/"):    #decide if an absolute or relative path
         curpath=""
@@ -229,114 +230,176 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                 in_block_comment = True
             elif workingline.lower().startswith("#endrem"):
                 in_block_comment = False
-                
+
             if in_block_comment or workingline.lower().startswith("#endrem"):
                 with open (outputfilename, 'a') as output_file:
                     output_file.write("; {} [Commented out]\n".format(line.rstrip()))
             else:
-                # Substitute defines (before it is added so that the define itself is not replaced)
-                for key,value in definitions.items():
-                    if key in line:
-                        print("Replacing '{}' with ".format(line.strip(), end=""))
-                        line = replace(key, value,line) # Replace whole words only that are not in strings or comments
-                        print("'{}'".format(line))
-                        # line=line+"      'DEFINE: "+value+" SUBSTITUTED FOR "+key+"\n"
-                for key, macrovars in macros.items():
-                    if key in line:
-                        params={}
+                if workingline.lower().startswith("#ifdef"):
+                    key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
+                    if_stack.append(is_if_active(1) and key in definitions)
+                    print("{}: #ifdef. Stack is now: {}".format(count+1, if_stack))
+                    line = "; {}".format(line)
+                elif workingline.lower().startswith("#ifndef"):
+                    key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
+                    if_stack.append(is_if_active(1) and not key in definitions)
+                    print("{}: #ifndef. Stack is now: {}".format(count+1, if_stack))
+                    line = "; {}".format(line)
+                # Ifs will be treated separately later after definitions are substituted.
+                elif workingline.lower().startswith("#else"): # ELSE and ELSEIF
+                    if len(if_stack) == 0:
+                        preprocessor_error("""Too many elses or not enough ifs.
+    Error is before or at line {} in '{}'.""".format(count+1,curfilename))
+                    elif workingline.lower().startswith("#elseifdef"):
+                        preprocessor_warning("ELSEIFDEF Not implemented")
+                    elif workingline.lower().startswith("#elseifndef"):
+                        preprocessor_warning("ELSEIFNDEF Not implemented")
+                    elif len(workingline.strip()) == 5: # Else only - not elseif
+                        if_stack[-1] = is_if_active(1) and not if_stack[-1]
+                        print("{}: #else. Stack is now: {}".format(count+1, if_stack))
+                    # elsif only will be evaluated after definitions are substituted.
+                    line = "; {}".format(line)
+                elif workingline.lower().startswith("#endif"):
+                    if len(if_stack) == 0:
+                        preprocessor_error("""Too many endifs or not enough ifs.
+    Error is before or at line {} in '{}'.""".format(count+1,curfilename))
+                    else:
+                        if_stack.pop()
+                    print("{}: #endif. Stack afterwards is: {}".format(count+1, if_stack))
+                    line = "; {}".format(line)
+                else:
+                    # Only substitute if the name of the define is not important
+                    # Substitute defines (before it is added so that the define itself is not replaced)
+                    for key,value in definitions.items():
+                        if key in line:
+                            print("Replacing '{}' with ".format(line.strip()), end="")
+                            line = replace(key, value,line) # Replace whole words only that are not in strings or comments
+                            print("'{}'".format(line.strip()))
+                            # line=line+"      'DEFINE: "+value+" SUBSTITUTED FOR "+key+"\n"
+                    for key, macrovars in macros.items():
+                        if key in line:
+                            params={}
+                            argnum=0
+                            macrocontents=line.split(key)[1]
+                            macrocontents=macrocontents.strip().strip("(").strip(")")
+                            while(1):
+                                argnum+=1
+                            
+                                if "," in macrocontents:
+                                    params[argnum]=macrocontents.split(",")[0].rstrip()   #
+                                    
+                                    macrocontents=macrocontents.split(",")[1].strip() # Remove the first parameter nd try again 
+                                else:
+                                    print("finished parsing macro contents")
+                                    params[argnum]=macrocontents.split(",")[0].rstrip()
+                                    #params[argnum]=params[argnum].strip("(").strip(")").strip()
+                                    print(params)
+                                    break
+                            line = replace(key, macrovars[0], line)
+                            print(macrovars)
+                            for num, name in macrovars.items():
+                                    if name in line:
+                                        if num>0:
+                                            line = replace(name, params[num], line)
+
+                    # TODO: Process ifs with evaluation and comparison
+                    if workingline.lower().startswith("#if "):
+                        preprocessor_warning("#ifs with evaluation not yet implemented. Assuming it evaluates to True.")
+                        # equation = 
+                        if_stack.append(True)
+                        line = "; {}".format(line)
+                        print("{}: #if. Stack is now: {}".format(count+1, if_stack))
+                    
+                if is_if_active(0):
+                    # Preprocessor check
+                    if workingline.lower().startswith("#include"):
+                        workingline=workingline[9:].lstrip().split("'")[0].split(";")[0].rstrip()     #remove #include text, comments, and whitespace
+                        workingline=workingline.strip('"')         #remove quotation marks around path
+                        #print(workingline)
+                        with open (outputfilename, 'a') as output_file:
+                            output_file.write("'---BEGIN "+workingline+" ---\n")
+                        progparse(workingline,count+1,curfilename) # +1 for 0 indexing
+                    elif workingline.lower().startswith("#define"):     #Automatically substitute #defines
+                        workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()
+                        try:
+                            definitions[workingline.split()[0]]=(workingline.split(None,1)[1])   #add to dictionary of definitions
+                        except:
+                            print("Old define found, leaving intact")
+                            # Make it replace any call to itdelf with itself so that it is in the dictionary for ifdef
+                            definitions[workingline.split()[0]] = workingline.split()[0]
+                        
+                        with open (outputfilename, 'a') as output_file:
+                            output_file.write(line.rstrip()+"\n")
+                    elif workingline.lower().startswith("#picaxe"): # Set the picaxe chip
+                        workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #picaxe text, comments, and whitespace
+                        set_chip(workingline)
+                        with open (outputfilename, 'a') as output_file:
+                            output_file.write(line.rstrip()+"      'CHIP VERSION PARSED\n")
+                    elif workingline.lower().startswith("#com"): # Set the serial port
+                        port = workingline[5:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #com text, comments, and whitespace
+                        port = port.strip('"')         #remove quotation marks around path
+                        print("Setting serial port to '{}'".format(port))
+                        with open (outputfilename, 'a') as output_file:
+                            output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
+                    elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
+                        savingmacro=True
+                        workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
+                        macroname=workingline.split("(")[0].rstrip()
+                        print(macroname)
+                        with open (outputfilename, 'a') as output_file:
+                            output_file.write("'PARSED MACRO "+macroname)
+                        macrocontents=workingline.split("(")[1].rstrip()
+                        macros[macroname]={}
                         argnum=0
-                        macrocontents=line.split(key)[1]
-                        macrocontents=macrocontents.strip().strip("(").strip(")")
                         while(1):
                             argnum+=1
-                        
-                            if "," in macrocontents:
-                                params[argnum]=macrocontents.split(",")[0].rstrip()   #
-                                
-                                macrocontents=macrocontents.split(",")[1].strip() # Remove the first parameter nd try again 
-                            else:
-                                print("finished parsing macro contents")
-                                params[argnum]=macrocontents.split(",")[0].rstrip()
-                                #params[argnum]=params[argnum].strip("(").strip(")").strip()
-                                print(params)
+                            if macrocontents.strip()==")":
+                                print("no parameters to macro")
+                                macros[macroname][0]="'Start of macro: "+macroname
+                                print(macros)
                                 break
-                        line = replace(key, macrovars[0], line)
-                        print(macrovars)
-                        for num, name in macrovars.items():
-                                if name in line:
-                                    if num>0:
-                                        line = replace(name, params[num], line)
-                        
-                        #print("LINE BEFORE FIND: " + line)
-                        #line=line[:line.rfind(")", 0, line.rfind(")"))]+line[line.rfind(")", 0, line.rfind(")"))+1:]
-                        #print("LINE AFTER FIND: " + line)
-
-
-                # Preprocessor check
-                if workingline.lower().startswith("#include"):
-                    workingline=workingline[9:].lstrip().split("'")[0].split(";")[0].rstrip()     #remove #include text, comments, and whitespace
-                    workingline=workingline.strip('"')         #remove quotation marks around path
-                    #print(workingline)
-                    with open (outputfilename, 'a') as output_file:
-                        output_file.write("'---BEGIN "+workingline+" ---\n")
-                    progparse(workingline,count+1,curfilename) # +1 for 0 indexing
-                elif workingline.lower().startswith("#define"):     #Automatically substitute #defines
-                    workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()
-                    try:
-                        definitions[workingline.split()[0]]=(workingline.split(None,1)[1])   #add to dictionary of definitions
-                    except:
-                        print("Old define found, leaving intact")
-                    
-                    with open (outputfilename, 'a') as output_file:
-                        output_file.write(line.rstrip()+"\n")
-                elif workingline.lower().startswith("#picaxe"): # Set the picaxe chip
-                    workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #picaxe text, comments, and whitespace
-                    set_chip(workingline)
-                    with open (outputfilename, 'a') as output_file:
-                        output_file.write(line.rstrip()+"      'CHIP VERSION PARSED\n")
-                elif workingline.lower().startswith("#com"): # Set the serial port
-                    port = workingline[5:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #com text, comments, and whitespace
-                    port = port.strip('"')         #remove quotation marks around path
-                    print("Setting serial port to '{}'".format(port))
-                    with open (outputfilename, 'a') as output_file:
-                        output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
-                elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
-                    savingmacro=True
-                    workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
-                    macroname=workingline.split("(")[0].rstrip()
-                    print(macroname)
-                    with open (outputfilename, 'a') as output_file:
-                        output_file.write("'PARSED MACRO "+macroname)
-                    macrocontents=workingline.split("(")[1].rstrip()
-                    macros[macroname]={}
-                    argnum=0
-                    while(1):
-                        argnum+=1
-                        if macrocontents.strip()==")":
-                            print("no parameters to macro")
-                            macros[macroname][0]="'Start of macro: "+macroname
-                            print(macros)
-                            break
+                            else:
+                                macrocontents=macrocontents.rstrip(")").strip("(")
+                                macros[macroname][argnum]=macrocontents.split(",")[0].rstrip()   #create spot in dictionary for macro variables, but don't populate yet
+                                if "," in macrocontents:
+                                    macrocontents=macrocontents.split(",")[1].strip().rstrip()
+                                else:
+                                    print("finished parsing macro contents")
+                                    macros[macroname][0]="'--START OF MACRO: "+macroname+"\n"
+                                    break
+                    elif savingmacro==True:
+                        if workingline.lower().startswith("#endmacro"):
+                            savingmacro=False
+                            macros[macroname][0]=macros[macroname][0]+"'--END OF MACRO: "+macroname
                         else:
-                            macrocontents=macrocontents.rstrip(")").strip("(")
-                            macros[macroname][argnum]=macrocontents.split(",")[0].rstrip()   #create spot in dictionary for macro variables, but don't populate yet
-                            if "," in macrocontents:
-                                macrocontents=macrocontents.split(",")[1].strip().rstrip()
-                            else:
-                                print("finished parsing macro contents")
-                                macros[macroname][0]="'--START OF MACRO: "+macroname+"\n"
-                                break
-                elif savingmacro==True:
-                    if workingline.lower().startswith("#endmacro"):
-                        savingmacro=False
-                        macros[macroname][0]=macros[macroname][0]+"'--END OF MACRO: "+macroname
+                            macros[macroname][0]=macros[macroname][0]+line
+                    elif workingline.lower().startswith("#error"):
+                        preprocessor_error("""Error thrown at line {} in '{}'.
+
+Message: {}
+
+""".format(count+1,curfilename,workingline.strip().lstrip()[7:])) # Assumes there is a space after #error
+
                     else:
-                        macros[macroname][0]=macros[macroname][0]+line
+                        with open (outputpath+outputfilename, 'a') as output_file:
+                            output_file.write(line)
+
                 else:
-                    with open (outputpath+outputfilename, 'a') as output_file:
-                        output_file.write(line)
+                    with open (outputfilename, 'a') as output_file:
+                        output_file.write("; {} [#IF CODE REMOVED]\n".format(line.rstrip()))
         with open (outputfilename, 'a') as output_file:
             output_file.write("\n'---END "+curfilename+"---\n")
+        
+        # TODO: Throw an error if the stack of ifs is not empty
+
+def is_if_active(level: int):
+    """ Returns True if the code in the given level should be included.
+    
+    The top of the if stack is level 0, the parent above is 1, ...
+    """
+    return level >= len(if_stack) or if_stack[-1-level]
+
+
 
 def replace(key: str, value: str, line: str) -> str:
     """ Replaces a key with a value in a line if it is not in a string or a comment and is a whole
