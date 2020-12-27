@@ -74,7 +74,7 @@ Optional switches only used if sending to the compiler
     -P  --compilepath= specify the path to the compilers directory (defaults to /usr/local/lib/picaxe/)
 
 Preprocessor for PICAXE microcontrollers.
-See https://github.com/Patronics/PicaxePreprocess fo$RECYCLE.BINr more info.
+See https://github.com/Patronics/PicaxePreprocess for more info.
 """)
 
 def main(argv):

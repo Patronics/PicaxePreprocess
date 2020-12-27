@@ -1,10 +1,11 @@
 '-----PREPROCESSED BY picaxepreprocess.py-----
-'----UPDATED AT 12:44AM, December 27, 2020----
-'----SAVING AS compiled.bas ----
+'----UPDATED AT 02:41PM, December 27, 2020----
+'----SAVING AS .\Examples\Ifs\compiled.bas ----
 
-'---BEGIN IfTest.bas ---
+'---BEGIN .\Examples\Ifs\IfTest.bas ---
 ; Test IFDEF, IFNDEF, ELSE, ELSEIFDEF, ELSEIFNDEF, ENDIF
-
+; PE6: 14M2 is 281 bytes
+; Preprocessor with the same compilers: 14M2 is also 281 bytes. Hopefully this means they match.
 ; #REM [Commented out]
 ; This is a block comment. Stuff like [Commented out]
 ; #ERROR "is ignored... hopefully" [Commented out]
@@ -32,9 +33,11 @@
 ;         #ERROR "TESTD should not be defined" [#IF CODE REMOVED]
 ;     #ELSEIFDEF TESTB ; Should be true
         sertxd("TESTA and TESTB are defined and TESTC and TESTD not")
-; ;     #ELSEIFNDEF TESTD ; Should not be true [#IF CODE REMOVED]
-;         sertxd("TESTA is defined and TESTB, TESTC and TESTD are not defined") [#IF CODE REMOVED]
-;         #ERROR "Already should have evaluated something to True in this statement, so should ignore" [#IF CODE REMOVED]
+; #rem ; #elseifndef is not a standared preprocessor directive, but it was not hard to include seeing as #elseifdef is implemented. [Commented out]
+;     #ELSEIFNDEF TESTZ ; Should not be true [Commented out]
+;         sertxd("TESTA is defined and TESTB, TESTC and TESTD are not defined") [Commented out]
+;         #ERROR "Already should have evaluated something to True in this statement, so should ignore" [Commented out]
+; #endrem [Commented out]
 ; ;     #ELSEIFDEF TESTA ; Should not be true [#IF CODE REMOVED]
 ;         sertxd("TESTA is defined and TESTB, TESTC and are not defined") [#IF CODE REMOVED]
 ;         #ERROR "Already should have evaluated something to True in this statement, so should ignore" [#IF CODE REMOVED]
@@ -67,13 +70,16 @@
 ;     #ERROR "Should not have got here" [#IF CODE REMOVED]
 ; #ENDIF
 
-; #UNDEF TESTA
-; ; #IFDEF TESTA ; Should no longer be defined [#IF CODE REMOVED]
-;     sertxd("TESTA is defined") [#IF CODE REMOVED]
-;     #ERROR "TESTA should not be still defined" [#IF CODE REMOVED]
-; #ENDIF
+; #rem ; Even though #undef is in the manual, it does not appear to be implemented in PE6. Uncomment to test with [Commented out]
+; #UNDEF TESTA [Commented out]
+; #IFDEF TESTA ; Should no longer be defined [Commented out]
+;     sertxd("TESTA is defined") [Commented out]
+;     #ERROR "TESTA should not be still defined" [Commented out]
+; #ENDIF [Commented out]
+;  [Commented out]
+; #IFNDEF TESTA ; Should be true [Commented out]
+;     sertxd("TESTA is NOT defined") [Commented out]
+; #ENDIF [Commented out]
+; #endrem [Commented out]
 
-; #IFNDEF TESTA ; Should be true
-    sertxd("TESTA is NOT defined")
-; #ENDIF
 '---END IfTest.bas---

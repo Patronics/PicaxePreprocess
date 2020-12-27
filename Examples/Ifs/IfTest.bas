@@ -1,5 +1,6 @@
 ; Test IFDEF, IFNDEF, ELSE, ELSEIFDEF, ELSEIFNDEF, ENDIF
-
+; PE6: 14M2 is 281 bytes
+; Preprocessor with the same compilers: 14M2 is also 281 bytes. Hopefully this means they match.
 #REM
 This is a block comment. Stuff like
 #ERROR "is ignored... hopefully"
@@ -27,9 +28,11 @@ This is a block comment. Stuff like
         #ERROR "TESTD should not be defined"
     #ELSEIFDEF TESTB ; Should be true
         sertxd("TESTA and TESTB are defined and TESTC and TESTD not")
-    #ELSEIFNDEF TESTD ; Should not be true
+#rem ; #elseifndef is not a standared preprocessor directive, but it was not hard to include seeing as #elseifdef is implemented.
+    #ELSEIFNDEF TESTZ ; Should not be true
         sertxd("TESTA is defined and TESTB, TESTC and TESTD are not defined")
         #ERROR "Already should have evaluated something to True in this statement, so should ignore"
+#endrem
     #ELSEIFDEF TESTA ; Should not be true
         sertxd("TESTA is defined and TESTB, TESTC and are not defined")
         #ERROR "Already should have evaluated something to True in this statement, so should ignore"
@@ -62,6 +65,7 @@ This is a block comment. Stuff like
     #ERROR "Should not have got here"
 #ENDIF
 
+#rem ; Even though #undef is in the manual, it does not appear to be implemented in PE6. Uncomment to test with 
 #UNDEF TESTA
 #IFDEF TESTA ; Should no longer be defined
     sertxd("TESTA is defined")
@@ -71,3 +75,4 @@ This is a block comment. Stuff like
 #IFNDEF TESTA ; Should be true
     sertxd("TESTA is NOT defined")
 #ENDIF
+#endrem
