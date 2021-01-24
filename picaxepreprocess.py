@@ -9,6 +9,8 @@
 # TODO: Is a directory error for files
 # TODO: Debug levels
 # TODO: Remove extra comment ; added for ifs
+# TODO: Inperpret #terminal and start minicom or similar with #com params?
+# TODO: Ignore ' and ; in strings
 
 import sys, getopt, os, datetime, re, os.path, subprocess
 inputfilename = 'main.bas'
@@ -37,6 +39,10 @@ compiler_extension = "" # File extension (.exe...). For linux anyway, there is n
 send_to_compiler = False
 command = [""] # Empty string at the first position will be replaced by the compiler name and path.
 tidy = False
+
+include_table_sertxd = False # Custom, non standared preprocessor directive to print from table
+table_sertxd_address = 0
+table_sertxd_strings = []
 
 def print_help():
     # Prints the help message 
@@ -159,6 +165,27 @@ def main(argv):
     progparse(inputfile)   #begin parsing input file into output
     if len(if_stack):
             preprocessor_error("Too many ifs or not enough endifs at the end of processing")
+    if include_table_sertxd:
+        address_var = "w0"
+        end_var = "w1"
+        tmp_var = "b4"
+        if "TABLE_SERTXD_ADDRESS_VAR" in definitions:
+            address_var = definitions["TABLE_SERTXD_ADDRESS_VAR"]
+        if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions:
+            end_var = definitions["TABLE_SERTXD_ADDRESS_END_VAR"]
+        if "TABLE_SERTXD_TMP_BYTE" in definitions:
+            tmp_var = definitions["TABLE_SERTXD_TMP_BYTE"]
+        with open (outputfilename, 'a') as output_file:
+            output_file.write("""print_table_sertxd:
+    for {} = {} to {}
+        readtable {}, {}
+        sertxd({})
+    next {}
+    return
+
+""".format(address_var, address_var, end_var, address_var, tmp_var, tmp_var, address_var))
+            for i in table_sertxd_strings:
+                output_file.write(i)
 
     if send_to_compiler:
         if not os.path.exists(compiler_path):
@@ -198,6 +225,9 @@ def progparse(curfilename, called_from_line=None, called_from_file=None):
     global definitions
     global chip
     global port
+    global include_table_sertxd
+    global table_sertxd_address
+
     savingmacro=False
     print("\nIncluding file " + curfilename)
     path=os.path.dirname(os.path.abspath(inputfilename))+"/"
@@ -366,6 +396,41 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         print("Setting serial port to '{}'".format(port))
                         with open (outputfilename, 'a') as output_file:
                             output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
+
+                    elif workingline.lower().startswith(";#sertxd"): # non-standared tool to print from table
+                        include_table_sertxd = True
+                        table_chars = 0
+                        contents_list = line.lstrip()[9:].strip().split("'")[0].split(";")[0].lstrip("(").rstrip(")").split(",")
+                        print(contents_list)
+                        i = 0
+                        while i < len(contents_list): # Needs to update if elements are deleted
+                            if '"' in contents_list[i]:
+                                print("Is string", contents_list[i].strip().strip('"'))
+                                table_chars += len(contents_list[i].strip().strip('"'))
+                            else:
+                                table_chars += 1
+                                if contents_list[i].strip()[0] =='#': # Ignore print variable hash values as they cannot be stored in table
+                                    contents_list[i] = '"?"'
+                                print("Is char")
+                            i += 1
+                        contents = ",".join(contents_list)
+                        print(table_chars)
+                        address_var = "w0"
+                        end_var = "w1"
+                        if "TABLE_SERTXD_ADDRESS_VAR" in definitions:
+                            address_var = definitions["TABLE_SERTXD_ADDRESS_VAR"]
+                        if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions:
+                            end_var = definitions["TABLE_ADDRESS_END_LENGTH_VAR"]
+                        
+                        table_sertxd_strings.append("table ({}) ;#sertxd\n".format(contents))
+                        with open (outputfilename, 'a') as output_file:
+                            output_file.write("{} = {}\n".format(address_var, table_sertxd_address))
+                            output_file.write("{} = {}\n".format(end_var, table_chars + table_sertxd_address - 1))
+                            output_file.write("gosub print_table_sertxd\n")
+                            
+                            table_sertxd_address += table_chars
+
+
                     elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
                         savingmacro=True
                         workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
