@@ -43,6 +43,7 @@ tidy = False
 include_table_sertxd = False # Custom, non standared preprocessor directive to print from table
 table_sertxd_address = 0
 table_sertxd_strings = []
+include_newline_sertxd = False # Custom, non standared preprocessor directive to print a new line.
 
 def print_help():
     # Prints the help message 
@@ -169,6 +170,7 @@ def main(argv):
         address_var = "w0"
         end_var = "w1"
         tmp_var = "b4"
+        save_loc = 120
         if "TABLE_SERTXD_ADDRESS_VAR" in definitions:
             address_var = definitions["TABLE_SERTXD_ADDRESS_VAR"]
         if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions:
@@ -176,16 +178,35 @@ def main(argv):
         if "TABLE_SERTXD_TMP_BYTE" in definitions:
             tmp_var = definitions["TABLE_SERTXD_TMP_BYTE"]
         with open (outputfilename, 'a') as output_file:
-            output_file.write("""print_table_sertxd:
+            output_file.write("print_table_sertxd:\n")
+            if "TABLE_SERTXD_BACKUP_VARS" in definitions:
+                # Save to general purpose ram and reload after
+                if "TABLE_SERTXD_BACKUP_LOC" in definitions:
+                    save_loc = definitions["TABLE_SERTXD_BACKUP_LOC"]
+                
+                output_file.write("    poke {}, {}, word {}, word {}".format(save_loc, tmp_var, address_var, end_var))
+
+                
+            output_file.write("""
     for {} = {} to {}
         readtable {}, {}
         sertxd({})
     next {}
-    return
-
 """.format(address_var, address_var, end_var, address_var, tmp_var, tmp_var, address_var))
+            if "TABLE_SERTXD_BACKUP_VARS" in definitions:
+                output_file.write("    peek {}, {}, word {}, word {}\n".format(save_loc, tmp_var, address_var, end_var))
+            output_file.write("    return\n\n")
             for i in table_sertxd_strings:
                 output_file.write(i)
+
+        print("Storing strings in table uses {} bytes".format(table_sertxd_address))
+
+    if include_newline_sertxd:
+        with open (outputfilename, 'a') as output_file:
+            output_file.write("""print_newline_sertxd:
+    sertxd(cr, lf)
+    return
+""")
 
     if send_to_compiler:
         if not os.path.exists(compiler_path):
@@ -226,6 +247,7 @@ def progparse(curfilename, called_from_line=None, called_from_file=None):
     global chip
     global port
     global include_table_sertxd
+    global include_newline_sertxd
     global table_sertxd_address
 
     savingmacro=False
@@ -397,6 +419,11 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         with open (outputfilename, 'a') as output_file:
                             output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
 
+                    elif workingline.lower().startswith(";#sertxdnl"): # Print a new line
+                        include_newline_sertxd = True
+                        with open (outputfilename, 'a') as output_file:
+                            output_file.write("gosub print_newline_sertxd\n")
+
                     elif workingline.lower().startswith(";#sertxd"): # non-standared tool to print from table
                         include_table_sertxd = True
                         table_chars = 0
@@ -420,7 +447,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         if "TABLE_SERTXD_ADDRESS_VAR" in definitions:
                             address_var = definitions["TABLE_SERTXD_ADDRESS_VAR"]
                         if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions:
-                            end_var = definitions["TABLE_ADDRESS_END_LENGTH_VAR"]
+                            end_var = definitions["TABLE_SERTXD_ADDRESS_END_VAR"]
                         
                         table_sertxd_strings.append("table ({}) ;#sertxd\n".format(contents))
                         with open (outputfilename, 'a') as output_file:
@@ -429,7 +456,6 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                             output_file.write("gosub print_table_sertxd\n")
                             
                             table_sertxd_address += table_chars
-
 
                     elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
                         savingmacro=True
