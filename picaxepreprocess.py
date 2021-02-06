@@ -168,33 +168,89 @@ def main(argv):
             preprocessor_error("Too many ifs or not enough endifs at the end of processing")
     if include_table_sertxd:
         address_var = "w0"
+        address_varl = "b0"
+        address_varh = "b1"
         end_var = "w1"
+        end_varl = "b2"
+        end_varh = "b3"
         tmp_var = "b4"
         save_loc = 120
+        # Address var
         if "TABLE_SERTXD_ADDRESS_VAR" in definitions:
             address_var = definitions["TABLE_SERTXD_ADDRESS_VAR"]
+            print("Address var changed to {}".format(address_var))
+        if "TABLE_SERTXD_ADDRESS_VAR_L" in definitions:
+            address_varl = definitions["TABLE_SERTXD_ADDRESS_VAR_L"]
+            print("Address var lower changed to {}".format(address_varl))
+        if "TABLE_SERTXD_ADDRESS_VAR_H" in definitions:
+            address_varh = definitions["TABLE_SERTXD_ADDRESS_VAR_H"]
+            print("Address var upper changed to {}".format(address_varh))
+
+        # Address end var
         if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions:
             end_var = definitions["TABLE_SERTXD_ADDRESS_END_VAR"]
+            print("Address end var changed to {}".format(end_var))
+        if "TABLE_SERTXD_ADDRESS_END_VAR_L" in definitions:
+            end_varl = definitions["TABLE_SERTXD_ADDRESS_END_VAR_L"]
+            print("Address end var lower changed to {}".format(end_varl))
+        if "TABLE_SERTXD_ADDRESS_END_VAR_H" in definitions:
+            end_varh = definitions["TABLE_SERTXD_ADDRESS_END_VAR_H"]
+            print("Address end var upper changed to {}".format(end_varh))
+
+        # Tmp byte
         if "TABLE_SERTXD_TMP_BYTE" in definitions:
             tmp_var = definitions["TABLE_SERTXD_TMP_BYTE"]
+            print("Tmp var changed to {}".format(tmp_var))
+
+        # Generate and write the subroutines to the file
         with open (outputfilename, 'a') as output_file:
-            output_file.write("print_table_sertxd:\n")
+            output_file.write("\n\n'---Extras added by the preprocessor---\n")
+            output_file.write("backup_table_sertxd:\n")
+            # Backup existing variables
             if "TABLE_SERTXD_BACKUP_VARS" in definitions:
                 # Save to general purpose ram and reload after
+                print("Enableing backups")
                 if "TABLE_SERTXD_BACKUP_LOC" in definitions:
-                    save_loc = definitions["TABLE_SERTXD_BACKUP_LOC"]
-                
-                output_file.write("    poke {}, {}, word {}, word {}".format(save_loc, tmp_var, address_var, end_var))
+                    try:
+                        save_loc = int(definitions["TABLE_SERTXD_BACKUP_LOC"])
+                    except ValueError:
+                        preprocessor_error("'{}' is not a valid integer when defining 'TABLE_SERTXD_BACKUP_LOC'.")
+                    
+                    if save_loc < 0 or save_loc > 507:
+                        preprocessor_error("""Table sertxd cannot save temporary variables in ram location {}.
+This needs to be between 0 and 507 inclusive (takes 5 bytes from this number).""".format(save_loc))
 
+                    print("Backup location changed to {}".format(save_loc))
+
+                if "TABLE_SERTXD_ADDRESS_VAR" in definitions and ("TABLE_SERTXD_ADDRESS_VAR_L" not in definitions or "TABLE_SERTXD_ADDRESS_VAR_H" not in definitions):
+                    preprocessor_error("""'TABLE_SERTXD_ADDRESS_VAR_L' and 'TABLE_SERTXD_ADDRESS_VAR_H' must be
+defined to back up variables if 'TABLE_SERTXD_ADDRESS_VAR' is defined.""")
+
+                if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions and ("TABLE_SERTXD_ADDRESS_END_VAR_L" not in definitions or "TABLE_SERTXD_ADDRESS_END_VAR_H" not in definitions):
+                    preprocessor_error("""'TABLE_SERTXD_ADDRESS_END_VAR_L' and 'TABLE_SERTXD_ADDRESS_END_VAR_H' must be
+defined to back up variables if 'TABLE_SERTXD_ADDRESS_END_VAR' is defined.""")
                 
+                output_file.write("    poke {}, {}\n".format(save_loc, tmp_var))
+                output_file.write("    poke {}, {}\n".format(save_loc + 1, address_varl))
+                output_file.write("    poke {}, {}\n".format(save_loc + 2, address_varh))
+                output_file.write("    poke {}, {}\n".format(save_loc + 3, end_varl))
+                output_file.write("    poke {}, {}\n".format(save_loc + 4, end_varh))
+                output_file.write("    return\n\n")
+
+            output_file.write("print_table_sertxd:\n")
             output_file.write("""
     for {} = {} to {}
         readtable {}, {}
         sertxd({})
     next {}
+
 """.format(address_var, address_var, end_var, address_var, tmp_var, tmp_var, address_var))
             if "TABLE_SERTXD_BACKUP_VARS" in definitions:
-                output_file.write("    peek {}, {}, word {}, word {}\n".format(save_loc, tmp_var, address_var, end_var))
+                output_file.write("    peek {}, {}\n".format(save_loc, tmp_var))
+                output_file.write("    peek {}, {}\n".format(save_loc + 1, address_varl))
+                output_file.write("    peek {}, {}\n".format(save_loc + 2, address_varh))
+                output_file.write("    peek {}, {}\n".format(save_loc + 3, end_varl))
+                output_file.write("    peek {}, {}\n".format(save_loc + 4, end_varh))
             output_file.write("    return\n\n")
             for i in table_sertxd_strings:
                 output_file.write(i)
@@ -451,6 +507,10 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         
                         table_sertxd_strings.append("table ({}) ;#sertxd\n".format(contents))
                         with open (outputfilename, 'a') as output_file:
+                            # Backup if needed
+                            if "TABLE_SERTXD_BACKUP_VARS" in definitions:
+                                output_file.write("gosub backup_table_sertxd ; Save the values currently in the variables\n")
+                            
                             output_file.write("{} = {}\n".format(address_var, table_sertxd_address))
                             output_file.write("{} = {}\n".format(end_var, table_chars + table_sertxd_address - 1))
                             output_file.write("gosub print_table_sertxd\n")
