@@ -609,7 +609,7 @@ def replace(key: str, value: str, line: str) -> str:
         if(line[i] == "\""):
             # Start or end of a string
             in_string = not in_string
-        elif(line[i] == "'" or line[i] == ";"):
+        elif(line[i] == "'" or line[i] == ";") and line[i:i+8] != ";#sertxd":
             # Start of a comment
             in_comment = True
         elif(line[i] == "\n"):
