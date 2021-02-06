@@ -166,6 +166,8 @@ def main(argv):
     progparse(inputfile)   #begin parsing input file into output
     if len(if_stack):
             preprocessor_error("Too many ifs or not enough endifs at the end of processing")
+
+    # Sertxd table extension subroutines and data insertion
     if include_table_sertxd:
         address_var = "w0"
         address_varl = "b0"
