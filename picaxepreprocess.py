@@ -342,13 +342,13 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                 # Process ifdef, ifndef, else and endif. If not one of them, proceed with substituting defines.
                 if workingline.lower().startswith("#ifdef"):
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
-                    active = is_if_active(1) and key in definitions
+                    active = is_if_active(0) and key in definitions
                     if_stack.append((active, active))
                     print("{}: #ifdef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
                 elif workingline.lower().startswith("#ifndef"):
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
-                    active = is_if_active(1) and key not in definitions
+                    active = is_if_active(0) and key not in definitions
                     if_stack.append((active, active))
                     print("{}: #ifndef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
