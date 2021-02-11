@@ -33,6 +33,7 @@ Optional switches
     -u, --upload       Send the file to the compiler if this option is included.
     -s, --syntax       Send the file to the compiler for a syntax check only (no download)
         --nocolor      Disable terminal colour for systems that do not support it (Windows).
+        --noifs        Disable evaluation of #if and #ifdef - this will be left to the compiler if present.
     -h, --help         Display this help
 
 Optional switches only used if sending to the compiler

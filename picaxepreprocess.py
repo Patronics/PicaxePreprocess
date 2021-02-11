@@ -24,6 +24,7 @@ if_stack = [] # List to be use as a stack for whether code should be included.
 
 use_colour = True # Does not work on Windows, will end up with a lot of nonsense characters when
                   # showing an error.
+use_ifs = True # Whether to evaluate preprocessor if statements
 
 # Default options to pass to the compiler
 port = "/dev/ttyUSB0"
@@ -50,6 +51,7 @@ Optional switches
     -u, --upload       Send the file to the compiler if this option is included.
     -s, --syntax       Send the file to the compiler for a syntax check only (no download)
         --nocolor      Disable terminal colour for systems that do not support it (Windows).
+        --noifs        Disable evaluation of #if and #ifdef - this will be left to the compiler if present.
     -h, --help         Display this help
 
 Optional switches only used if sending to the compiler
@@ -88,6 +90,7 @@ def main(argv):
     global tidy
     global compiler_path
     global use_colour
+    global use_ifs
 
     # Use the last argument as the file name if it does not start with a dash
     if (len(argv) == 1 or len(argv) >= 2 and argv[-2] not in ("-o", "-v", "-c")) and argv[-1][0] != "-": # Double check the second last is -i if needed
@@ -98,13 +101,15 @@ def main(argv):
                 argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor"])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs"])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
     for opt, arg in opts:
         if opt == "--nocolor":
             use_colour = False
+        elif opt == "--noifs":
+            use_ifs = False
         elif opt in ("-h", "--help"):
             print_help()
             sys.exit()
@@ -230,20 +235,20 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     output_file.write("; {} [Commented out]\n".format(line.rstrip()))
             else:
                 # Process ifdef, ifndef, else and endif. If not one of them, proceed with substituting defines.
-                if workingline.lower().startswith("#ifdef"):
+                if use_ifs and workingline.lower().startswith("#ifdef"):
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
                     active = is_if_active(0) and key in definitions
                     if_stack.append((active, active))
                     print("{}: #ifdef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
-                elif workingline.lower().startswith("#ifndef"):
+                elif use_ifs and workingline.lower().startswith("#ifndef"):
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
                     active = is_if_active(0) and key not in definitions
                     if_stack.append((active, active))
                     print("{}: #ifndef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
                 # Ifs will be treated separately later after definitions are substituted.
-                elif workingline.lower().startswith("#elseifdef"): # ELSE and ELSEIF
+                elif use_ifs and workingline.lower().startswith("#elseifdef"): # ELSE and ELSEIF
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many elses or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
@@ -252,7 +257,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     if_stack[-1] = (active, if_stack[-1][1] or active)
                     line = "; {}".format(line)
                     print("{}: #elseifdef. Stack is now: {}".format(count+1, if_stack))
-                elif workingline.lower().startswith("#elseifndef"):
+                elif use_ifs and workingline.lower().startswith("#elseifndef"):
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many elses or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
@@ -261,7 +266,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     if_stack[-1] = (active, if_stack[-1][1] or active)
                     line = "; {}".format(line)
                     print("{}: #elseifndef. Stack is now: {}".format(count+1, if_stack))
-                elif workingline.lower().startswith("#else") and len(workingline.strip().split()[0]) == 5: # Else only - not elseif
+                elif use_ifs and workingline.lower().startswith("#else") and len(workingline.strip().split()[0]) == 5: # Else only - not elseif
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many elses or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
@@ -269,7 +274,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     print("{}: #else. Stack is now: {}".format(count+1, if_stack))
                     # elsif only will be evaluated after definitions are substituted.
                     line = "; {}".format(line)
-                elif workingline.lower().startswith("#endif"):
+                elif use_ifs and workingline.lower().startswith("#endif"):
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many endifs or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
@@ -320,12 +325,12 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                                             line = replace(name, params[num], line)
 
                     # Process ifs with evaluation and comparison
-                    if workingline.lower().startswith("#if "):
+                    if use_ifs and workingline.lower().startswith("#if "):
                         active = is_if_active(1) and evaluate_basic(line.lstrip()[4:], count + 1, curfilename)
                         if_stack.append((active, active))
                         line = "; {}".format(line)
                         print("{}: #if. Stack is now: {}".format(count+1, if_stack))
-                    elif workingline.lower().startswith("#elseif "):
+                    elif use_ifs and workingline.lower().startswith("#elseif "):
                         if len(if_stack) == 0:
                             preprocessor_error("""Not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
