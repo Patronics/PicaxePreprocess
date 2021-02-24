@@ -1,5 +1,5 @@
 '-----PREPROCESSED BY picaxepreprocess.py-----
-'----UPDATED AT 01:32PM, December 13, 2020----
+'----UPDATED AT 12:27AM, December 27, 2020----
 '----SAVING AS compiled.bas ----
 
 '---BEGIN main.bas ---
@@ -9,9 +9,9 @@
 goto init
 '---BEGIN 2.bas ---
 
-#define MAGIC_NUMBER "83838838"      'DEFINITION PARSED
+; #define MAGIC_NUMBER "83838838"
 
-#DEFINE SetBackLedOn	b0 =255 : toggle 2      'DEFINITION PARSED
+; #DEFINE SetBackLedOn	b0 =255 : toggle 2
 
 '---BEGIN 4.bas ---
 	toggle 2
@@ -27,12 +27,12 @@ SendHeadingSpeed:
 'PARSED MACRO SerialMacro
 'PARSED MACRO Assign
 '--START OF MACRO: Assign
-  Let w0 = 1 * 2 + 3 
+  Let var = 1 * 2 + 3
 '--END OF MACRO: Assign( w0, 1 * 2 + 3 )
 
 testloop:
-	sertxd("83838838")      'DEFINE: "83838838" SUBSTITUTED FOR MAGIC_NUMBER
-	b0 =255 : toggle 2      'DEFINE: b0 =255 : toggle 2 SUBSTITUTED FOR SetBackLedOn
+	sertxd("83838838")
+	b0 =255 : toggle 2
 	'--START OF MACRO: SerialMacro
 
 sertxd("this is a macro :)", "37")
@@ -44,10 +44,11 @@ return
 '---END 2.bas---
 'the following line demonstrates absolute paths. uncomment and set to an absolute path that exists on your system to test.
 '#include "/Users/patrickleiser/Documents/Programming/Robotics Club/PicaxeInclude/4.bas
-#define testing      'DEFINITION PARSED
-#define message sertxd("New Define")      'DEFINITION PARSED
+; #define testing
+; #define message sertxd("New Define")
 
-#picaxe 18M2      'CHIP VERSION PARSED
+'the following line demonstrates specifiying a picaxe variant in-line
+'#picaxe 18M2
 
 init:
 toggle 1
@@ -66,10 +67,10 @@ main:
        Gosub SendHeadingSpeed
 '--END OF MACRO: SetHeadingSpeed(92,34)
 	 
-	 #ifdef testing
+; 	 #ifdef testing
 	 	sertxd("Old Defines Still Work")
-	 #endif
-	 sertxd("New Define")      'DEFINE: sertxd("New Define") SUBSTITUTED FOR message
+; 	 #endif
+	 sertxd("New Define")
 	 
 goto main
 
