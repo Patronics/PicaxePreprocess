@@ -149,6 +149,9 @@ def main(argv):
         elif opt in ("-P", "--compilepath"): #chose non-default path to compilers
             compiler_path = os.path.join(arg,'') #adds trailing slash if needed
     if not os.path.exists(inputfilename):
+        if (inputfilename == "main.bas"):    #show help if likely run with no arguments
+            preprocessor_error("'{}/{}' does not exist. Either specify an input file or put it in the same folder as this script with the name 'main.bas'".format(os.getcwd(), inputfilename), True)
+        #otherwise just output error message
         preprocessor_error("'{}/{}' does not exist. Either specify an input file or put it in the same folder as this script with the name 'main.bas'".format(os.getcwd(), inputfilename))
 
     print('Input file is ', inputfilename)
@@ -494,10 +497,12 @@ def set_chip(new_chip: str) -> None:
         preprocessor_error("""'{}' given as a PICAXE chip, but is not in the list of known parts or compilers.
 Please select from:\n{}""".format(new_chip,valid_chips))
 
-def preprocessor_error(msg):
+def preprocessor_error(msg, show_help=False):
     """ Prints an error message that may be coloured if there is an issue preprocessing.
     Will also stop the script executing. """
     # Header
+    if show_help:
+        print_help()
     if use_colour:
         print("\u001b[1m\u001b[31m", end="") # Bold Red
     print("PREPROCESSOR ERROR")
