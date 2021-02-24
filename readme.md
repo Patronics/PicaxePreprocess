@@ -1,7 +1,7 @@
 # PicaxePreprocess.py
 A PICAXE preprocessor to implement most preprocessor directives found in Picaxe Programming editor 6 for use with axepad, blockly, and other non-PE6 editors.
 
-This tool can also be used as a starting point for include/macro implementstions in other software tools.
+This tool can also be used as a starting point for include/macro implementations in other software tools.
 
 ## Setup
 If you don't already have it, install python3.
