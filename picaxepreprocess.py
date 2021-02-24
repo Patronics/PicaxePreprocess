@@ -306,11 +306,13 @@ def set_chip(new_chip):
     global chip
     valid_chips = ["08", "08m2", "08m2le", "14m", "14m2", "18", "18a", "18m", "18m2", "18x",
                    "18x_1", "20m", "20m2", "20x2", "28", "28a", "28x", "28x_1", "28x1", "28x1_0",
-                   "28x2"]
+                   "28x2", "40x2"]
     new_chip = new_chip.lower() # In case of 08M2 or 08m2
     if new_chip in valid_chips:
         print("Setting the PICAXE chip to: '{}'".format(new_chip))
         chip = new_chip
+        if (chip == "40x2"):
+           chip = "28x2"   #28x2 and 40x2 use the same compiler
     else:
         preprocessor_error("""'{}' given as a PICAXE chip, but is not in the list of known parts or compilers.
 Please select from:\n{}""".format(new_chip,valid_chips))
