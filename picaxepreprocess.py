@@ -231,7 +231,20 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                 in_block_comment = True
             elif workingline.lower().startswith("#endrem"):
                 in_block_comment = False
-
+                
+            #check for preprocessor string substitutions
+            if "ppp_" in workingline:
+                line=line.replace("ppp_filename", '"'+inputfilename+'"')
+                line=line.replace("ppp_filepath", '"'+os.path.abspath(outputpath+inputfilename)+'"')
+                #note: curpath may not always be the same as the path to inputfilename
+                line=line.replace("ppp_includefilename", '"'+os.path.basename(curfilename)+'"')
+                line=line.replace("ppp_includefilepath", '"'+os.path.abspath(curpath+curfilename)+'"')
+                line=line.replace("ppp_date_uk", '"'+datetime.datetime.now().strftime("%d-%m-%Y")+'"')
+                line=line.replace("ppp_date_us", '"'+datetime.datetime.now().strftime("%m-%d-%Y")+'"')
+                line=line.replace("ppp_datetime", '"'+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+'"')
+                line=line.replace("ppp_date", '"'+datetime.datetime.now().strftime("%Y-%m-%d")+'"')
+                line=line.replace("ppp_time", '"'+datetime.datetime.now().strftime("%H:%M:%S")+'"')
+            
             # Only continue parsing the line if it is not part of a block comment
             if in_block_comment or workingline.lower().startswith("#endrem"):
                 with open (outputfilename, 'a') as output_file:
@@ -439,7 +452,7 @@ def evaluate_basic(equation: str, line_num: str, curfilename: str):
 
     :returns: The result from the eval() function - may be a bool or a number.
     """
-    equation = equation.lstrip().replace("'",";",1) # Make the comment consistant so it can be removed. Also use line so that the replacements from before are used
+    equation = equation.lstrip().replace("'",";",1) # Make the comment consistent so it can be removed. Also use line so that the replacements from before are used
     equation = equation[:equation.find(";")] # Strip the comment
     if "!=" not in equation: # Convert basic equals and not equals to python - assumes only a single comparison in the equation
         equation = equation.replace("=","==")
