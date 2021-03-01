@@ -26,6 +26,7 @@ if_stack = [] # List to be use as a stack for whether code should be included.
 
 use_colour = True # Does not work on Windows, will end up with a lot of nonsense characters when
                   # showing an error.
+use_ifs = True # Whether to evaluate preprocessor if statements
 
 # Default options to pass to the compiler
 port = "/dev/ttyUSB0"
@@ -57,6 +58,7 @@ Optional switches
     -u, --upload       Send the file to the compiler if this option is included.
     -s, --syntax       Send the file to the compiler for a syntax check only (no download)
         --nocolor      Disable terminal colour for systems that do not support it (Windows).
+        --noifs        Disable evaluation of #if and #ifdef - this will be left to the compiler if present.
     -h, --help         Display this help
 
 Optional switches only used if sending to the compiler
@@ -95,6 +97,7 @@ def main(argv):
     global tidy
     global compiler_path
     global use_colour
+    global use_ifs
 
     # Use the last argument as the file name if it does not start with a dash
     if (len(argv) == 1 or len(argv) >= 2 and argv[-2] not in ("-o", "-v", "-c")) and argv[-1][0] != "-": # Double check the second last is -i if needed
@@ -105,13 +108,15 @@ def main(argv):
                 argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor"])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs"])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
     for opt, arg in opts:
         if opt == "--nocolor":
             use_colour = False
+        elif opt == "--noifs":
+            use_ifs = False
         elif opt in ("-h", "--help"):
             print_help()
             sys.exit()
@@ -151,6 +156,9 @@ def main(argv):
         elif opt in ("-P", "--compilepath"): #chose non-default path to compilers
             compiler_path = os.path.join(arg,'') #adds trailing slash if needed
     if not os.path.exists(inputfilename):
+        if (inputfilename == "main.bas"):    #show help if likely run with no arguments
+            preprocessor_error("'{}/{}' does not exist. Either specify an input file or put it in the same folder as this script with the name 'main.bas'".format(os.getcwd(), inputfilename), True)
+        #otherwise just output error message
         preprocessor_error("'{}/{}' does not exist. Either specify an input file or put it in the same folder as this script with the name 'main.bas'".format(os.getcwd(), inputfilename))
 
     print('Input file is ', inputfilename)
@@ -333,27 +341,40 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                 in_block_comment = True
             elif workingline.lower().startswith("#endrem"):
                 in_block_comment = False
-
+                
+            #check for preprocessor string substitutions
+            if "ppp_" in workingline:
+                line=line.replace("ppp_filename", '"'+inputfilename+'"')
+                line=line.replace("ppp_filepath", '"'+os.path.abspath(outputpath+inputfilename)+'"')
+                #note: curpath may not always be the same as the path to inputfilename
+                line=line.replace("ppp_includefilename", '"'+os.path.basename(curfilename)+'"')
+                line=line.replace("ppp_includefilepath", '"'+os.path.abspath(curpath+curfilename)+'"')
+                line=line.replace("ppp_date_uk", '"'+datetime.datetime.now().strftime("%d-%m-%Y")+'"')
+                line=line.replace("ppp_date_us", '"'+datetime.datetime.now().strftime("%m-%d-%Y")+'"')
+                line=line.replace("ppp_datetime", '"'+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+'"')
+                line=line.replace("ppp_date", '"'+datetime.datetime.now().strftime("%Y-%m-%d")+'"')
+                line=line.replace("ppp_time", '"'+datetime.datetime.now().strftime("%H:%M:%S")+'"')
+            
             # Only continue parsing the line if it is not part of a block comment
             if in_block_comment or workingline.lower().startswith("#endrem"):
                 with open (outputfilename, 'a') as output_file:
                     output_file.write("; {} [Commented out]\n".format(line.rstrip()))
             else:
                 # Process ifdef, ifndef, else and endif. If not one of them, proceed with substituting defines.
-                if workingline.lower().startswith("#ifdef"):
+                if use_ifs and workingline.lower().startswith("#ifdef"):
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
                     active = is_if_active(0) and key in definitions
                     if_stack.append((active, active))
                     print("{}: #ifdef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
-                elif workingline.lower().startswith("#ifndef"):
+                elif use_ifs and workingline.lower().startswith("#ifndef"):
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
                     active = is_if_active(0) and key not in definitions
                     if_stack.append((active, active))
                     print("{}: #ifndef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
                 # Ifs will be treated separately later after definitions are substituted.
-                elif workingline.lower().startswith("#elseifdef"): # ELSE and ELSEIF
+                elif use_ifs and workingline.lower().startswith("#elseifdef"): # ELSE and ELSEIF
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many elses or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
@@ -362,7 +383,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     if_stack[-1] = (active, if_stack[-1][1] or active)
                     line = "; {}".format(line)
                     print("{}: #elseifdef. Stack is now: {}".format(count+1, if_stack))
-                elif workingline.lower().startswith("#elseifndef"):
+                elif use_ifs and workingline.lower().startswith("#elseifndef"):
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many elses or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
@@ -371,7 +392,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     if_stack[-1] = (active, if_stack[-1][1] or active)
                     line = "; {}".format(line)
                     print("{}: #elseifndef. Stack is now: {}".format(count+1, if_stack))
-                elif workingline.lower().startswith("#else") and len(workingline.strip().split()[0]) == 5: # Else only - not elseif
+                elif use_ifs and workingline.lower().startswith("#else") and len(workingline.strip().split()[0]) == 5: # Else only - not elseif
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many elses or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
@@ -379,7 +400,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     print("{}: #else. Stack is now: {}".format(count+1, if_stack))
                     # elsif only will be evaluated after definitions are substituted.
                     line = "; {}".format(line)
-                elif workingline.lower().startswith("#endif"):
+                elif use_ifs and workingline.lower().startswith("#endif"):
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many endifs or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
@@ -430,12 +451,12 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                                             line = replace(name, params[num], line)
 
                     # Process ifs with evaluation and comparison
-                    if workingline.lower().startswith("#if "):
+                    if use_ifs and workingline.lower().startswith("#if "):
                         active = is_if_active(1) and evaluate_basic(line.lstrip()[4:], count + 1, curfilename)
                         if_stack.append((active, active))
                         line = "; {}".format(line)
                         print("{}: #if. Stack is now: {}".format(count+1, if_stack))
-                    elif workingline.lower().startswith("#elseif "):
+                    elif use_ifs and workingline.lower().startswith("#elseif "):
                         if len(if_stack) == 0:
                             preprocessor_error("""Not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
@@ -584,7 +605,7 @@ def evaluate_basic(equation: str, line_num: str, curfilename: str):
 
     :returns: The result from the eval() function - may be a bool or a number.
     """
-    equation = equation.lstrip().replace("'",";",1) # Make the comment consistant so it can be removed. Also use line so that the replacements from before are used
+    equation = equation.lstrip().replace("'",";",1) # Make the comment consistent so it can be removed. Also use line so that the replacements from before are used
     equation = equation[:equation.find(";")] # Strip the comment
     if "!=" not in equation: # Convert basic equals and not equals to python - assumes only a single comparison in the equation
         equation = equation.replace("=","==")
@@ -631,19 +652,23 @@ def set_chip(new_chip: str) -> None:
     global chip
     valid_chips = ["08", "08m2", "08m2le", "14m", "14m2", "18", "18a", "18m", "18m2", "18x",
                    "18x_1", "20m", "20m2", "20x2", "28", "28a", "28x", "28x_1", "28x1", "28x1_0",
-                   "28x2"]
+                   "28x2", "40x2"]
     new_chip = new_chip.lower() # In case of 08M2 or 08m2
     if new_chip in valid_chips:
         print("Setting the PICAXE chip to: '{}'".format(new_chip))
         chip = new_chip
+        if (chip == "40x2"):
+           chip = "28x2"   #28x2 and 40x2 use the same compiler
     else:
         preprocessor_error("""'{}' given as a PICAXE chip, but is not in the list of known parts or compilers.
 Please select from:\n{}""".format(new_chip,valid_chips))
 
-def preprocessor_error(msg):
+def preprocessor_error(msg, show_help=False):
     """ Prints an error message that may be coloured if there is an issue preprocessing.
     Will also stop the script executing. """
     # Header
+    if show_help:
+        print_help()
     if use_colour:
         print("\u001b[1m\u001b[31m", end="") # Bold Red
     print("PREPROCESSOR ERROR")

@@ -1,7 +1,7 @@
 # PicaxePreprocess.py
 A PICAXE preprocessor to implement most preprocessor directives found in Picaxe Programming editor 6 for use with axepad, blockly, and other non-PE6 editors.
 
-This tool can also be used as a starting point for include/macro implementstions in other software tools.
+This tool can also be used as a starting point for include/macro implementations in other software tools.
 
 ## Setup
 If you don't already have it, install python3.
@@ -33,6 +33,7 @@ Optional switches
     -u, --upload       Send the file to the compiler if this option is included.
     -s, --syntax       Send the file to the compiler for a syntax check only (no download)
         --nocolor      Disable terminal colour for systems that do not support it (Windows).
+        --noifs        Disable evaluation of #if and #ifdef - this will be left to the compiler if present.
     -h, --help         Display this help
 
 Optional switches only used if sending to the compiler
