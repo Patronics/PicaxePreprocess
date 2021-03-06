@@ -6,11 +6,10 @@
 # Created by Patrick Leiser, edited by Jotham Gates
 # Run this script with no options for usage information.
 # TODO: Friendlier error detection and explanations
-# TODO: Is a directory error for files
 # TODO: Debug levels
 # TODO: Remove extra comment ; added for ifs
-# TODO: Inperpret #terminal and start minicom or similar with #com params?
-# TODO: Ignore ' and ; in strings
+# TODO: Interpret #terminal and start minicom or similar with #com params?
+# TODO: Make preprocessor error and warning use global line num and filename variables to not have to pass them around as much.
 
 import sys, getopt, os, datetime, re, os.path, subprocess
 inputfilename = 'main.bas'
@@ -215,9 +214,9 @@ def main(argv):
         # Generate and write the subroutines to the file
         with open (outputfilename, 'a') as output_file:
             output_file.write("\n\n'---Extras added by the preprocessor---\n")
-            output_file.write("backup_table_sertxd:\n")
             # Backup existing variables
             if "TABLE_SERTXD_BACKUP_VARS" in definitions:
+                output_file.write("backup_table_sertxd:\n")
                 # Save to general purpose ram and reload after
                 print("Enableing backups")
                 if "TABLE_SERTXD_BACKUP_LOC" in definitions:
@@ -504,23 +503,29 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                             output_file.write("gosub print_newline_sertxd\n")
 
                     elif workingline.lower().startswith(";#sertxd"): # non-standared tool to print from table
+                        print("Processing ;#sertxd: '{}'".format(line.strip()))
                         include_table_sertxd = True
                         table_chars = 0
-                        contents_list = line.lstrip()[9:].strip().split("'")[0].split(";")[0].lstrip("(").rstrip(")").split(",")
-                        print(contents_list)
-                        i = 0
-                        while i < len(contents_list): # Needs to update if elements are deleted
-                            if '"' in contents_list[i]:
-                                print("Is string", contents_list[i].strip().strip('"'))
-                                table_chars += len(contents_list[i].strip().strip('"'))
+                        args = line.lstrip()[9:].strip().lstrip("(")
+                        args, _ = extract_args(args, 0, ")")
+
+                        # Calculate the number of bytes used
+                        for i in range(len(args)):
+                            if '"' in args[i]:
+                                table_chars += len(args[i].strip().strip('"'))
                             else:
                                 table_chars += 1
-                                if contents_list[i].strip()[0] =='#': # Ignore print variable hash values as they cannot be stored in table
-                                    contents_list[i] = '"?"'
-                                print("Is char")
-                            i += 1
-                        contents = ",".join(contents_list)
-                        print(table_chars)
+                                if args[i].strip()[0] =='#': # Ignore print variable hash values as they cannot be stored in table. Printing the var as an ascii value will still slip through and cause errors.
+                                    preprocessor_warning("""There has been a call to print a variable in a ;#sertxd directive.
+This is not possible and will be replaced with a '?'.
+Any calls to print variables as ASCII chars without the '#' will have slipped
+through and may cause cryptic errors.
+File: {}, Line: {}
+'{}'""".format(curfilename, count+1, line))
+                                    args[i] = '"?"'
+                        
+                        # Add the required function calls and numbers to the output file
+                        contents = ",".join(args)
                         address_var = "w0"
                         end_var = "w1"
                         if "TABLE_SERTXD_ADDRESS_VAR" in definitions:
@@ -528,7 +533,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions:
                             end_var = definitions["TABLE_SERTXD_ADDRESS_END_VAR"]
                         
-                        table_sertxd_strings.append("table ({}) ;#sertxd\n".format(contents))
+                        table_sertxd_strings.append("table {}, ({}) ;#sertxd\n".format(table_sertxd_address, contents))
                         with open (outputfilename, 'a') as output_file:
                             # Backup if needed
                             if "TABLE_SERTXD_BACKUP_VARS" in definitions:
@@ -588,6 +593,37 @@ Message: {}
                         output_file.write("; {} [#IF CODE REMOVED]\n".format(line.rstrip()))
         with open (outputfilename, 'a') as output_file:
             output_file.write("\n'---END "+curfilename+"---\n")
+
+def extract_args(line: str, start_pos: int, end_char: str = None) -> tuple:
+    """ Extracts arguments from a string.
+    For example:
+    >>> picaxepreprocess.extract_args("sertxd(12, \"hello, world!'())\", 13, 14) # Hello", 7, ")")
+    (['12', '"hello, world!\'())"', '13', '14'], 38)
+
+    Returns a tuple with a list of arguments extracted and the new position to go on from """
+    in_string = False
+    args = []
+    i = start_pos
+
+    # Iterate over all arguments and add them to the list until we reach the end of the line, a comment or the stop char.
+    while i < len(line) and (in_string or (line[i] != "'" and line[i] != ";" and line[i] != end_char)):
+        if line[i] == '"':
+            in_string = not in_string
+        elif not in_string and line[i] == ",":
+            args.append(line[start_pos:i].strip())
+            start_pos = i + 1 # Skip the comma
+
+        i += 1
+    
+    # Add the last argument
+    args.append(line[start_pos:i].strip())
+
+    # Check if we didn't exit properly because we ran out of line or other reason
+    if in_string or (end_char != None and (i == len(line) or line[i] == "'" or line[i] == ";")):
+        preprocessor_error("Could not extract arguments from\n'{}'\n{}^ Error picked up here\nMissing '{}' or issues with placement of '\"'?".format(line, " "*(i+1), end_char))
+
+    # We are hopefully done
+    return args, i
 
 def is_if_active(level: int):
     """ Returns True if the code in the given level should be included.
