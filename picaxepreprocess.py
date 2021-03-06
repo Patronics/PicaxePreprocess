@@ -40,7 +40,9 @@ send_to_compiler = False
 command = [""] # Empty string at the first position will be replaced by the compiler name and path.
 tidy = False
 
-include_table_sertxd = False # Custom, non standared preprocessor directive to print from table
+# Custom, non standared preprocessor directive to print from table
+include_table_sertxd = False # Whether there are and ;#sertxd directives in the code requiring extra code to be added to the end.
+enable_table_sertxd = False # A command line switch must
 table_sertxd_address = 0
 table_sertxd_strings = []
 include_newline_sertxd = False # Custom, non standared preprocessor directive to print a new line.
@@ -52,24 +54,70 @@ picaxepreprocess.py [OPTIONS] [INPUTFILE]
 
 Optional switches
     -i, --ifile=       Input file (default main.bas). Flag not required if it is
-                       the last argument given.
+                        the last argument given.
     -o, --ofile=       Output file (default compiled.bas)
     -u, --upload       Send the file to the compiler if this option is included.
-    -s, --syntax       Send the file to the compiler for a syntax check only (no download)
-        --nocolor      Disable terminal colour for systems that do not support it (Windows).
-        --noifs        Disable evaluation of #if and #ifdef - this will be left to the compiler if present.
+    -s, --syntax       Send the file to the compiler for a syntax check only
+                        (no download)
+        --nocolor      Disable terminal colour for systems that do not support
+                        it (Windows).
+        --noifs        Disable evaluation of #if and #ifdef - this will be left
+                        to the compiler if present.
+        --tablesertxd  Enable a non standard extension that will evaluate a
+                        ;#sertxd directive to automatically save, load and print
+                        a string from table memory on supported chips. For
+                        example:
+                            ;sertxd("Hello world", cr, lf)
+                        Syntax is the same as the sertxd command, although
+                        dynamic content such as printing variables is not
+                        supported. Two word and one byte variables are required
+                        for storing addresses and processing. The folowing
+                        definitions can be used to change the default behaviour:
+            DEFINE                         DEFAULT DESCRIPTION
+            TABLE_SERTXD_ADDRESS_VAR       w0      Changes the word used. If not
+                                                   backing up, the value in it
+                                                   will be lost when ;#sertxd is
+                                                   called.
+            TABLE_SERTXD_ADDRESS_END_VAR   w1      Changes the word used.
+            TABLE_SERTXD_TMP_BYTE          b4      Changes the byte used.
+            TABLE_SERTXD_BACKUP_VARS       -       Enable saving & restoring
+                                                   the variables used to
+                                                   storage ram. This is slower
+                                                   as it uses peek & poke, but
+                                                   allows the variables to keep
+                                                   their value accross ;#sertxd
+                                                   calls.
+
+            Only required if backing up variables:
+            TABLE_SERTXD_BACKUP_LOC        121     The location in storage ram
+                                                   to save the existing values
+                                                   of the general purpose
+                                                   variables. 5 bytes are
+                                                   required.
+            TABLE_SERTXD_ADDRESS_VAR_L     b0      The lower byte (I haven't had
+                                                   much success in using peek
+                                                   and poke with words, so need
+                                                   the individual bytes)
+            TABLE_SERTXD_ADDRESS_VAR_H     b1      The upper byte
+            TABLE_SERTXD_ADDRESS_END_VAR_L b2      The lower byte
+            TABLE_SERTXD_ADDRESS_END_VAR_H b3      The upper byte
+                        This flag also enables the non standard ;#sertxdnl
+                        directive that prints a new line. When called many
+                        times, this uses less program space than sertxd(cr, lf)
+
     -h, --help         Display this help
 
 Optional switches only used if sending to the compiler
     -v, --variant=     Variant (default 08m2)
-                       (alternatively use #PICAXE directive within the program.
-                       This option will be ignored if #PICAXE is used)
+                        (alternatively use #PICAXE directive within the program.
+                        This option will be ignored if #PICAXE is used)
     -s, --syntax       Syntax check only (no download)
     -f, --firmware     Firmware check only (no download)
     -c, --comport=     Assign COM/USB port device (default /dev/ttyUSB0)
-                       (alternately use #COM directive within program. This option
-                       will be ignored if #COM is used). There should be a space
-                       between the -c and the port, unlike the compilers.
+                        (alternately use #COM directive within program. This
+                        option will be ignored if #COM is used). There should be
+                        a space between the -c and the port, unlike the
+                        compilers.
     -d, --debug        Leave port open for debug display (b0-13)
         --debughex     Leave port open for debug display (hex mode)
     -e  --edebug       Leave port open for debug display (b14-b27)
@@ -79,7 +127,8 @@ Optional switches only used if sending to the compiler
         --termint      Leave port open for sertxd display (int mode)
     -p, --pass         Add pass message to error report file
         --tidy         Remove the output file on completion if in upload mode.
-    -P  --compilepath= specify the path to the compilers directory (defaults to /usr/local/lib/picaxe/)
+    -P  --compilepath= specify the path to the compilers directory (defaults to
+                        /usr/local/lib/picaxe/)
 
 Preprocessor for PICAXE microcontrollers.
 See https://github.com/Patronics/PicaxePreprocess for more info.
