@@ -83,12 +83,14 @@ Two word and one byte variables are required for storing addresses and processin
 
 ##### The folowing definitions can be used to change the default behaviour: <!-- omit in toc -->
 
-| Definition                     | Default Value | Description                                                                                                                                                                |
-| ------------------------------ | :-----------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TABLE_SERTXD_ADDRESS_VAR`     |     `w0`      | Changes the word used. If not backing up, the value in it will be lost when `;#sertxd` is called.                                                                          |
-| `TABLE_SERTXD_ADDRESS_END_VAR` |     `w1`      | Changes the word used.                                                                                                                                                     |
-| `TABLE_SERTXD_TMP_BYTE`        |     `b4`      | Changes the byte used.                                                                                                                                                     |
-| `TABLE_SERTXD_BACKUP_VARS`     | Do not backup | Enable saving & restoring the variables used to storage ram. This is slower as it uses peek & poke, but allows the variables to keep their value accross `;#sertxd` calls. |
+| Definition                     |  Default Value   | Description                                                                                                                                                                |
+| ------------------------------ | :--------------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TABLE_SERTXD_ADDRESS_VAR`     |       `w0`       | Changes the word used. If not backing up, the value in it will be lost when `;#sertxd` is called.                                                                          |
+| `TABLE_SERTXD_ADDRESS_END_VAR` |       `w1`       | Changes the word used.                                                                                                                                                     |
+| `TABLE_SERTXD_TMP_BYTE`        |       `b4`       | Changes the byte used.                                                                                                                                                     |
+| `TABLE_SERTXD_BACKUP_VARS`     |  Do not backup   | Enable saving & restoring the variables used to storage ram. This is slower as it uses peek & poke, but allows the variables to keep their value accross `;#sertxd` calls. |
+| `TABLE_SERTXD_USE_EEPROM`      | Use table memory | If defined, uses eeprom to store strings instead of table memory, allowing this extension to be used on chips without table memory.                                        |
+| `TABLE_SERTXD_MEM_OFFSET`      |        0         | Offset the start of the first string in case the first part of the memory is needed for something else.                                                                    |
 
 ##### Only required if backing up variables: <!-- omit in toc -->
 | Definition                       | Default Value | Description                                                                                                     |
