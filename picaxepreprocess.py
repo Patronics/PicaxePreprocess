@@ -146,6 +146,7 @@ def main(argv):
     global compiler_path
     global use_colour
     global use_ifs
+    global enable_table_sertxd
 
     # Use the last argument as the file name if it does not start with a dash
     if (len(argv) == 1 or len(argv) >= 2 and argv[-2] not in ("-o", "-v", "-c")) and argv[-1][0] != "-": # Double check the second last is -i if needed
@@ -156,7 +157,7 @@ def main(argv):
                 argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs"])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "tablesertxd"])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -165,6 +166,8 @@ def main(argv):
             use_colour = False
         elif opt == "--noifs":
             use_ifs = False
+        elif opt == "--tablesertxd":
+            enable_table_sertxd = True
         elif opt in ("-h", "--help"):
             print_help()
             sys.exit()
@@ -546,12 +549,12 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         with open (outputfilename, 'a') as output_file:
                             output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
 
-                    elif workingline.lower().startswith(";#sertxdnl"): # Print a new line
+                    elif enable_table_sertxd and workingline.lower().startswith(";#sertxdnl"): # Print a new line
                         include_newline_sertxd = True
                         with open (outputfilename, 'a') as output_file:
                             output_file.write("gosub print_newline_sertxd\n")
 
-                    elif workingline.lower().startswith(";#sertxd"): # non-standared tool to print from table
+                    elif enable_table_sertxd and workingline.lower().startswith(";#sertxd"): # non-standared tool to print from table
                         print("Processing ;#sertxd: '{}'".format(line.strip()))
                         include_table_sertxd = True
                         table_chars = 0
