@@ -9,7 +9,7 @@ This tool can also be used as a starting point for include/macro implementations
   - [Options and usage](#options-and-usage)
     - [Optional switches](#optional-switches)
     - [Optional switches only used if sending to the compiler](#optional-switches-only-used-if-sending-to-the-compiler)
-    - [Table Sertxd Extension](#table-sertxd-extension)
+  - [Table Sertxd Extension](#table-sertxd-extension)
   - [Usage with a makefile](#usage-with-a-makefile)
 - [Other projects](#other-projects)
 
@@ -69,7 +69,7 @@ picaxepreprocess.py [OPTIONS] [INPUTFILE]
 |       | `--tidy`         |       no       | Remove the output file on completion if in upload mode.                                                                                                                                                                                                 |
 | `-P`  | `--compilepath=` |      yes       | Specify the path to the compilers directory (defaults to `/usr/local/lib/picaxe/`)                                                                                                                                                                      |
 
-#### Table Sertxd Extension
+### Table Sertxd Extension
 Enable a non standard extension that will evaluate a `;#sertxd` directive to automatically save, load and print a string from table memory on supported chips.
 
 For example:
@@ -81,7 +81,7 @@ Syntax is the same as the `sertxd` command, although dynamic content such as pri
 
 Two word and one byte variables are required for storing addresses and processing, as set by the defines outlined below. These variables can be modified between calls to `;#sertxd`, although any call to `;#sertxd` will modify them unless variable backup and restore to storage ram is enabled.
 
-##### The folowing definitions can be used to change the default behaviour: <!-- omit in toc -->
+#### The folowing definitions can be used to change the default behaviour: <!-- omit in toc -->
 
 | Definition                     |  Default Value   | Description                                                                                                                                                                |
 | ------------------------------ | :--------------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -92,7 +92,7 @@ Two word and one byte variables are required for storing addresses and processin
 | `TABLE_SERTXD_USE_EEPROM`      | Use table memory | If defined, uses eeprom to store strings instead of table memory, allowing this extension to be used on chips without table memory.                                        |
 | `TABLE_SERTXD_MEM_OFFSET`      |        0         | Offset the start of the first string in case the first part of the memory is needed for something else.                                                                    |
 
-##### Only required if backing up variables: <!-- omit in toc -->
+#### Only required if backing up variables: <!-- omit in toc -->
 | Definition                       | Default Value | Description                                                                                                     |
 | -------------------------------- | :-----------: | --------------------------------------------------------------------------------------------------------------- |
 | `TABLE_SERTXD_BACKUP_LOC`        |      121      | The location in storage ram to save the existing values of the general purpose variables. 5 bytes are required. |
@@ -103,7 +103,7 @@ Two word and one byte variables are required for storing addresses and processin
 
 This flag also enables the non standard `;#sertxdnl` directive that prints a new line. When called many times, this uses less program space than `sertxd(cr, lf)`
 
-##### Table Sertxd Extension usage example <!-- omit in toc -->
+#### Table Sertxd Extension usage example <!-- omit in toc -->
 <details>
   <summary>Click to expand</summary>
 
