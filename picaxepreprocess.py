@@ -6,10 +6,11 @@
 # Created by Patrick Leiser, edited by Jotham Gates
 # Run this script with no options for usage information.
 # TODO: Friendlier error detection and explanations
-# TODO: Is a directory error for files
 # TODO: Debug levels
 # TODO: Remove extra comment ; added for ifs
-
+# TODO: Interpret #terminal and start minicom or similar with #com params?
+# TODO: Make preprocessor error and warning use global line num and filename variables to not have to pass them around as much.
+# TODO: TABLE SERTXD Escape chars (\)
 import sys, getopt, os, datetime, re, os.path, subprocess
 inputfilename = 'main.bas'
 outputfilename = 'compiled.bas'
@@ -39,6 +40,14 @@ send_to_compiler = False
 command = [""] # Empty string at the first position will be replaced by the compiler name and path.
 tidy = False
 
+# Custom, non standared preprocessor directive to print from table
+include_table_sertxd = False # Whether there are and ;#sertxd directives in the code requiring extra code to be added to the end.
+enable_table_sertxd = False # The --tablesertxd switch must be used to enable searching for ;#sertxd and ;#sertxdnl directives.
+table_sertxd_address = 0
+table_sertxd_strings = []
+table_sertxd_use_eeprom = False
+include_newline_sertxd = False # Custom, non standared preprocessor directive to print a new line.
+
 def print_help():
     # Prints the help message 
     print("""
@@ -46,24 +55,79 @@ picaxepreprocess.py [OPTIONS] [INPUTFILE]
 
 Optional switches
     -i, --ifile=       Input file (default main.bas). Flag not required if it is
-                       the last argument given.
+                        the last argument given.
     -o, --ofile=       Output file (default compiled.bas)
     -u, --upload       Send the file to the compiler if this option is included.
-    -s, --syntax       Send the file to the compiler for a syntax check only (no download)
-        --nocolor      Disable terminal colour for systems that do not support it (Windows).
-        --noifs        Disable evaluation of #if and #ifdef - this will be left to the compiler if present.
+    -s, --syntax       Send the file to the compiler for a syntax check only
+                        (no download)
+        --nocolor      Disable terminal colour for systems that do not support
+                        it (Windows).
+        --noifs        Disable evaluation of #if and #ifdef - this will be left
+                        to the compiler if present.
+        --tablesertxd  Enable a non standard extension that will evaluate a
+                        ;#sertxd directive to automatically save, load and print
+                        a string from table memory on supported chips. For
+                        example:
+                            ;sertxd("Hello world", cr, lf)
+                        Syntax is the same as the sertxd command, although
+                        dynamic content such as printing variables is not
+                        supported. Two word and one byte variables are required
+                        for storing addresses and processing. The folowing
+                        definitions can be used to change the default behaviour:
+            DEFINE                         DEFAULT DESCRIPTION
+            TABLE_SERTXD_ADDRESS_VAR       w0      Changes the word used. If not
+                                                   backing up, the value in it
+                                                   will be lost when ;#sertxd is
+                                                   called.
+            TABLE_SERTXD_ADDRESS_END_VAR   w1      Changes the word used.
+            TABLE_SERTXD_TMP_BYTE          b4      Changes the byte used.
+            TABLE_SERTXD_BACKUP_VARS       -       Enable saving & restoring
+                                                   the variables used to
+                                                   storage ram. This is slower
+                                                   as it uses peek & poke, but
+                                                   allows the variables to keep
+                                                   their value accross ;#sertxd
+                                                   calls.
+            TABLE_SERTXD_USE_EEPROM        -       If defined, uses eeprom to
+                                                   store strings instead of
+                                                   table memory, allowing this
+                                                   extension to be used on chips
+                                                   without table memory.
+            TABLE_SERTXD_MEM_OFFSET        0       Offset the start of the first
+                                                   string in case the first part
+                                                   of the memory is needed for
+                                                   something else.
+
+            Only required if backing up variables:
+            TABLE_SERTXD_BACKUP_LOC        121     The location in storage ram
+                                                   to save the existing values
+                                                   of the general purpose
+                                                   variables. 5 bytes are
+                                                   required.
+            TABLE_SERTXD_ADDRESS_VAR_L     b0      The lower byte (I haven't had
+                                                   much success in using peek
+                                                   and poke with words, so need
+                                                   the individual bytes)
+            TABLE_SERTXD_ADDRESS_VAR_H     b1      The upper byte
+            TABLE_SERTXD_ADDRESS_END_VAR_L b2      The lower byte
+            TABLE_SERTXD_ADDRESS_END_VAR_H b3      The upper byte
+                        This flag also enables the non standard ;#sertxdnl
+                        directive that prints a new line. When called many
+                        times, this uses less program space than sertxd(cr, lf)
+
     -h, --help         Display this help
 
 Optional switches only used if sending to the compiler
     -v, --variant=     Variant (default 08m2)
-                       (alternatively use #PICAXE directive within the program.
-                       This option will be ignored if #PICAXE is used)
+                        (alternatively use #PICAXE directive within the program.
+                        This option will be ignored if #PICAXE is used)
     -s, --syntax       Syntax check only (no download)
     -f, --firmware     Firmware check only (no download)
     -c, --comport=     Assign COM/USB port device (default /dev/ttyUSB0)
-                       (alternately use #COM directive within program. This option
-                       will be ignored if #COM is used). There should be a space
-                       between the -c and the port, unlike the compilers.
+                        (alternately use #COM directive within program. This
+                        option will be ignored if #COM is used). There should be
+                        a space between the -c and the port, unlike the
+                        compilers.
     -d, --debug        Leave port open for debug display (b0-13)
         --debughex     Leave port open for debug display (hex mode)
     -e  --edebug       Leave port open for debug display (b14-b27)
@@ -73,7 +137,8 @@ Optional switches only used if sending to the compiler
         --termint      Leave port open for sertxd display (int mode)
     -p, --pass         Add pass message to error report file
         --tidy         Remove the output file on completion if in upload mode.
-    -P  --compilepath= specify the path to the compilers directory (defaults to /usr/local/lib/picaxe/)
+    -P  --compilepath= specify the path to the compilers directory (defaults to
+                        /usr/local/lib/picaxe/)
 
 Preprocessor for PICAXE microcontrollers.
 See https://github.com/Patronics/PicaxePreprocess for more info.
@@ -91,6 +156,7 @@ def main(argv):
     global compiler_path
     global use_colour
     global use_ifs
+    global enable_table_sertxd
 
     # Use the last argument as the file name if it does not start with a dash
     if (len(argv) == 1 or len(argv) >= 2 and argv[-2] not in ("-o", "-v", "-c")) and argv[-1][0] != "-": # Double check the second last is -i if needed
@@ -101,7 +167,7 @@ def main(argv):
                 argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs"])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "tablesertxd"])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -110,6 +176,8 @@ def main(argv):
             use_colour = False
         elif opt == "--noifs":
             use_ifs = False
+        elif opt == "--tablesertxd":
+            enable_table_sertxd = True
         elif opt in ("-h", "--help"):
             print_help()
             sys.exit()
@@ -168,11 +236,21 @@ def main(argv):
     if len(if_stack):
             preprocessor_error("Too many ifs or not enough endifs at the end of processing")
 
+    # Sertxd table extension subroutines and data insertion
+    if include_table_sertxd:
+        table_sertxd_print_sub()
+
+    # Add the subroutine for printing a new line. If used many times, this can use less program memory than directly calling sertxd(cr, lf)
+    if include_newline_sertxd:
+        table_sertxd_nl_sub()
+
+    # The output file is complete. Send it to the compiler if needed
     if send_to_compiler:
+        # Double check that the compiler directory exists
         if not os.path.exists(compiler_path):
             preprocessor_error("'{}' does not exist. Either specify a valid compilers directory or put them in '/usr/local/lib/picaxe/'".format(compiler_path))
 
-        # Calling the correct compiler
+        # Set up to call the correct compiler and arguments
         command[0] = "{}{}{}{}".format(compiler_path, compiler_name, chip, compiler_extension)
         command.append("-c{}".format(port))
         command.append(outputfilename)
@@ -184,6 +262,7 @@ def main(argv):
             print("{} ".format(i), end="")
         print()
         
+        # Run the compiler
         try:
             subprocess.run(command)
         except FileNotFoundError:
@@ -206,6 +285,10 @@ def progparse(curfilename, called_from_line=None, called_from_file=None):
     global definitions
     global chip
     global port
+    global include_table_sertxd
+    global include_newline_sertxd
+    global table_sertxd_address
+
     savingmacro=False
     print("\nIncluding file " + curfilename)
     path=os.path.dirname(os.path.abspath(inputfilename))+"/"
@@ -252,9 +335,9 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
             else:
                 # Process ifdef, ifndef, else and endif. If not one of them, proceed with substituting defines.
                 if use_ifs and workingline.lower().startswith("#ifdef"):
-                    key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
-                    active = is_if_active(0) and key in definitions
-                    if_stack.append((active, active))
+                    key = workingline.replace("'", " ").replace(";", " ").strip().split()[1] # Get just the definition we are checking exists
+                    active = is_if_active(0) and key in definitions # Evaluate based on the existence of the definition and the parent ifs whether the code should be run.
+                    if_stack.append((active, active)) # Add to the stack
                     print("{}: #ifdef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
                 elif use_ifs and workingline.lower().startswith("#ifndef"):
@@ -362,7 +445,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         #print(workingline)
                         with open (outputfilename, 'a') as output_file:
                             output_file.write("'---BEGIN "+workingline+" ---\n")
-                        progparse(workingline,count+1,curfilename) # +1 for 0 indexing
+                        progparse(workingline,count+1,curfilename) # +1 for 0 indexing and to match up with the gui text editor line nums
                     elif workingline.lower().startswith("#define"):     #Automatically substitute #defines
                         workingline=workingline[8:].lstrip().split("'")[0].split(";")[0].rstrip()
                         try:
@@ -387,6 +470,81 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         print("Setting serial port to '{}'".format(port))
                         with open (outputfilename, 'a') as output_file:
                             output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
+
+                    elif enable_table_sertxd and workingline.lower().startswith(";#sertxdnl"): # Print a new line
+                        include_newline_sertxd = True
+                        with open (outputfilename, 'a') as output_file:
+                            output_file.write("gosub print_newline_sertxd\n")
+
+                    elif enable_table_sertxd and workingline.lower().startswith(";#sertxd"): # non-standared tool to print from table
+                        print("Processing ;#sertxd: '{}'".format(line.strip()))
+                        include_table_sertxd = True
+                        table_chars = 0
+                        args = line.lstrip()[9:].strip().lstrip("(")
+                        args, _ = extract_args(args, 0, ")")
+
+                        # Calculate the number of bytes used
+                        for i in range(len(args)):
+                            if '"' in args[i]:
+                                # This particular argument is a string and the number of chars between "" should be counted.
+                                table_chars += len(args[i].strip().strip('"'))
+                            else:
+                                # This particular char is not a string (hopefully a constant and not someone trying to print a variable). Add 1 byte    
+                                table_chars += 1
+                                if args[i].strip()[0] =='#': # Ignore print variable hash values as they cannot be stored in table. Printing the var as an ascii value will still slip through and cause errors.
+                                    preprocessor_warning("""There has been a call to print a variable in a ;#sertxd directive.
+This is not possible and will be replaced with a '?'.
+Any calls to print variables as ASCII chars without the '#' will have slipped
+through and may cause cryptic errors.
+File: {}, Line: {}
+'{}'""".format(curfilename, count+1, line))
+                                    args[i] = '"?"'
+                        
+                        # Add the required function calls and numbers to the output file
+                        contents = ",".join(args)
+
+                        # Set the addresses and variables
+                        address_var = "w0"
+                        end_var = "w1"
+                        if "TABLE_SERTXD_ADDRESS_VAR" in definitions:
+                            address_var = definitions["TABLE_SERTXD_ADDRESS_VAR"]
+                        if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions:
+                            end_var = definitions["TABLE_SERTXD_ADDRESS_END_VAR"]
+                        
+                        # Enable the option to save and load from eeprom to support chips without table memory.
+                        storage = "table"
+                        if "TABLE_SERTXD_USE_EEPROM" in definitions:
+                            storage = "eeprom"
+
+                        # Apply the offset to the first string if needed
+                        if table_sertxd_address == 0 and "TABLE_SERTXD_MEM_OFFSET" in definitions:
+                            try:
+                                table_sertxd_address = int(definitions["TABLE_SERTXD_MEM_OFFSET"])
+                            except ValueError:
+                                # We actually need an int to evaluate for this
+                                preprocessor_error("'{}' is not a valid integer when defining 'TABLE_SERTXD_MEM_OFFSET'.")
+                            
+                            print("Adding offset to sertxd table to start at {}".format(table_sertxd_address))
+
+                        # Generate the line with the storage to fill to place at the bottom later.
+                        table_sertxd_strings.append("{} {}, ({}) ;#sertxd\n".format(storage, table_sertxd_address, contents))
+
+                        # Write the call to the print_table_sertxd subroutine
+                        with open (outputfilename, 'a') as output_file:
+                            # Add a comment with the line responsible
+                            output_file.write("{} 'Evaluated below\n".format(line.strip()))
+                            # Backup if needed
+                            if "TABLE_SERTXD_BACKUP_VARS" in definitions:
+                                output_file.write("gosub backup_table_sertxd ; Save the values currently in the variables\n")
+
+                            # Set the required variables and call the print subroutine
+                            output_file.write("{} = {}\n".format(address_var, table_sertxd_address))
+                            output_file.write("{} = {}\n".format(end_var, table_chars + table_sertxd_address - 1))
+                            output_file.write("gosub print_table_sertxd\n")
+                            
+                        # Add the number of bytes to get the location for the next string to start.
+                        table_sertxd_address += table_chars
+
                     elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
                         savingmacro=True
                         workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
@@ -436,6 +594,150 @@ Message: {}
         with open (outputfilename, 'a') as output_file:
             output_file.write("\n'---END "+curfilename+"---\n")
 
+def table_sertxd_print_sub():
+    """ Generates the subroutine for the table sertxd extension and adds it to the output file """
+    address_var = "w0"
+    address_varl = "b0"
+    address_varh = "b1"
+    end_var = "w1"
+    end_varl = "b2"
+    end_varh = "b3"
+    tmp_var = "b4"
+    save_loc = 120
+    # Address var
+    if "TABLE_SERTXD_ADDRESS_VAR" in definitions:
+        address_var = definitions["TABLE_SERTXD_ADDRESS_VAR"]
+        print("Address var changed to {}".format(address_var))
+    if "TABLE_SERTXD_ADDRESS_VAR_L" in definitions:
+        address_varl = definitions["TABLE_SERTXD_ADDRESS_VAR_L"]
+        print("Address var lower changed to {}".format(address_varl))
+    if "TABLE_SERTXD_ADDRESS_VAR_H" in definitions:
+        address_varh = definitions["TABLE_SERTXD_ADDRESS_VAR_H"]
+        print("Address var upper changed to {}".format(address_varh))
+
+    # Address end var
+    if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions:
+        end_var = definitions["TABLE_SERTXD_ADDRESS_END_VAR"]
+        print("Address end var changed to {}".format(end_var))
+    if "TABLE_SERTXD_ADDRESS_END_VAR_L" in definitions:
+        end_varl = definitions["TABLE_SERTXD_ADDRESS_END_VAR_L"]
+        print("Address end var lower changed to {}".format(end_varl))
+    if "TABLE_SERTXD_ADDRESS_END_VAR_H" in definitions:
+        end_varh = definitions["TABLE_SERTXD_ADDRESS_END_VAR_H"]
+        print("Address end var upper changed to {}".format(end_varh))
+
+    # Tmp byte
+    if "TABLE_SERTXD_TMP_BYTE" in definitions:
+        tmp_var = definitions["TABLE_SERTXD_TMP_BYTE"]
+        print("Tmp var changed to {}".format(tmp_var))
+
+    # Generate and write the subroutines to the file
+    with open (outputfilename, 'a') as output_file:
+        output_file.write("\n\n'---Extras added by the preprocessor---\n")
+        # Backup existing variables
+        if "TABLE_SERTXD_BACKUP_VARS" in definitions:
+            output_file.write("backup_table_sertxd:\n")
+            # Save to general purpose ram and reload after
+            print("Enableing backups")
+            if "TABLE_SERTXD_BACKUP_LOC" in definitions:
+                try:
+                    save_loc = int(definitions["TABLE_SERTXD_BACKUP_LOC"])
+                except ValueError:
+                    preprocessor_error("'{}' is not a valid integer when defining 'TABLE_SERTXD_BACKUP_LOC'.")
+                
+                # Check we aren't trying to back up to a nonexistant area of storage ram
+                if save_loc < 0 or save_loc > 507:
+                    preprocessor_error("""Table sertxd cannot save temporary variables in ram location {}.
+This needs to be between 0 and 507 inclusive (takes 5 bytes from this number).""".format(save_loc))
+
+                print("Backup location changed to {}".format(save_loc))
+
+            # Check that the high and low bytes of each word are defined if they are changed and backups are enabled
+            if "TABLE_SERTXD_ADDRESS_VAR" in definitions and ("TABLE_SERTXD_ADDRESS_VAR_L" not in definitions or "TABLE_SERTXD_ADDRESS_VAR_H" not in definitions):
+                preprocessor_error("""'TABLE_SERTXD_ADDRESS_VAR_L' and 'TABLE_SERTXD_ADDRESS_VAR_H' must be
+defined to back up variables if 'TABLE_SERTXD_ADDRESS_VAR' is defined.""")
+
+            if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions and ("TABLE_SERTXD_ADDRESS_END_VAR_L" not in definitions or "TABLE_SERTXD_ADDRESS_END_VAR_H" not in definitions):
+                preprocessor_error("""'TABLE_SERTXD_ADDRESS_END_VAR_L' and 'TABLE_SERTXD_ADDRESS_END_VAR_H' must be
+defined to back up variables if 'TABLE_SERTXD_ADDRESS_END_VAR' is defined.""")
+            
+            # Write the backup commands to the output file
+            output_file.write("    poke {}, {}\n".format(save_loc, tmp_var))
+            output_file.write("    poke {}, {}\n".format(save_loc + 1, address_varl))
+            output_file.write("    poke {}, {}\n".format(save_loc + 2, address_varh))
+            output_file.write("    poke {}, {}\n".format(save_loc + 3, end_varl))
+            output_file.write("    poke {}, {}\n".format(save_loc + 4, end_varh))
+            output_file.write("    return\n\n")
+
+        # Load the data from the correct location (eeprom or table)
+        storage = "readtable"
+        if "TABLE_SERTXD_USE_EEPROM" in definitions:
+            storage = "read"
+
+        # Start writing the printing subroutine
+        output_file.write("print_table_sertxd:\n")
+        output_file.write("""    for {} = {} to {}
+    {} {}, {}
+    sertxd({})
+next {}
+
+""".format(address_var, address_var, end_var, storage, address_var, tmp_var, tmp_var, address_var))
+
+        # Restore from the backup as needed.
+        if "TABLE_SERTXD_BACKUP_VARS" in definitions:
+            output_file.write("    peek {}, {}\n".format(save_loc, tmp_var))
+            output_file.write("    peek {}, {}\n".format(save_loc + 1, address_varl))
+            output_file.write("    peek {}, {}\n".format(save_loc + 2, address_varh))
+            output_file.write("    peek {}, {}\n".format(save_loc + 3, end_varl))
+            output_file.write("    peek {}, {}\n".format(save_loc + 4, end_varh))
+        output_file.write("    return\n\n")
+        for i in table_sertxd_strings:
+            output_file.write(i)
+
+    print("Storing strings in table uses {} bytes".format(table_sertxd_address))
+
+def table_sertxd_nl_sub():
+    """ Appends the subroutine for printing a newline to the output file. If called many times, this
+    can use less memory than calling sertxd(cr, lf) directly. """
+    with open (outputfilename, 'a') as output_file:
+            output_file.write("""print_newline_sertxd:
+    sertxd(cr, lf)
+    return
+""")
+
+def extract_args(line: str, start_pos: int, end_char: str = None) -> tuple:
+    """ Extracts arguments from a string.
+    For example:
+    >>> picaxepreprocess.extract_args("sertxd(12, \"hello, world!'())\", 13, 14) # Hello", 7, ")")
+    (['12', '"hello, world!\'())"', '13', '14'], 38)
+
+    Returns a tuple with a list of arguments extracted and the new position to go on from """
+    in_string = False
+    args = []
+    i = start_pos
+
+    # Iterate over all arguments and add them to the list until we reach the end of the line, a comment or the stop char.
+    while i < len(line) and (in_string or (line[i] != "'" and line[i] != ";" and line[i] != end_char)):
+        if line[i] == '"': # and (not in_string or i == start_pos or line[i-1] != "\\"): # Detect if a non escaped "
+            # NOTE: The \ escape char needs to have a char in the string length taken off before handling escape chars can be implemented above.
+            # NOTE: Possibly make each element of the args list to be a tuple of string / value and number of chars? - Makes it simpler for above.
+            in_string = not in_string
+        elif not in_string and line[i] == ",":
+            args.append(line[start_pos:i].strip())
+            start_pos = i + 1 # Skip the comma
+
+        i += 1
+    
+    # Add the last argument
+    args.append(line[start_pos:i].strip())
+
+    # Check if we didn't exit properly because we ran out of line or other reason
+    if in_string or (end_char != None and (i == len(line) or line[i] == "'" or line[i] == ";")):
+        preprocessor_error("Could not extract arguments from\n'{}'\n{}^ Error picked up here\nMissing '{}' or issues with placement of '\"'?".format(line, " "*(i+1), end_char))
+
+    # We are hopefully done
+    return args, i
+
 def is_if_active(level: int):
     """ Returns True if the code in the given level should be included.
     
@@ -477,7 +779,7 @@ def replace(key: str, value: str, line: str) -> str:
         if(line[i] == "\""):
             # Start or end of a string
             in_string = not in_string
-        elif(line[i] == "'" or line[i] == ";"):
+        elif(line[i] == "'" or line[i] == ";") and line[i:i+8] != ";#sertxd":
             # Start of a comment
             in_comment = True
         elif(line[i] == "\n"):
@@ -541,6 +843,7 @@ def preprocessor_warning(msg):
     if use_colour:
         print("\u001b[0m", end="") # Reset
     print(msg)
+    print()
 
 
 if __name__ == "__main__":
