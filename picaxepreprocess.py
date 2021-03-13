@@ -718,7 +718,9 @@ def extract_args(line: str, start_pos: int, end_char: str = None) -> tuple:
 
     # Iterate over all arguments and add them to the list until we reach the end of the line, a comment or the stop char.
     while i < len(line) and (in_string or (line[i] != "'" and line[i] != ";" and line[i] != end_char)):
-        if line[i] == '"':
+        if line[i] == '"': # and (not in_string or i == start_pos or line[i-1] != "\\"): # Detect if a non escaped "
+            # NOTE: The \ escape char needs to have a char in the string length taken off before handling escape chars can be implemented above.
+            # NOTE: Possibly make each element of the args list to be a tuple of string / value and number of chars? - Makes it simpler for above.
             in_string = not in_string
         elif not in_string and line[i] == ",":
             args.append(line[start_pos:i].strip())

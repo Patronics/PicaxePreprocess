@@ -103,6 +103,71 @@ Two word and one byte variables are required for storing addresses and processin
 
 This flag also enables the non standard `;#sertxdnl` directive that prints a new line. When called many times, this uses less program space than `sertxd(cr, lf)`
 
+##### Table Sertxd Extension usage example <!-- omit in toc -->
+<details>
+  <summary>Click to expand</summary>
+
+As an example of what it does, a cutdown version of the [simple.bas](Examples/SertxdTableExtension/simple.bas) example:
+```basic
+#picaxe 14m2
+main:
+    ;#sertxd("Hello World", cr, lf)
+    ;#sertxd("That's a really annoying line!", cr,lf,"(because of all the characters that have to be ignored when in a string;",cr, lf, "such as ',', ''', ';', ')', '(', ']', '[', ':', '#', ...")
+    ;#sertxd("This line contains dynamic content that cannot be printed", #w0)
+    pause 5000
+    goto main
+```
+is preprocessed (on Ubuntu) using:
+```bash
+cd Examples/SertxdTableExtension
+# picaxepreprocess.py is copied into a folder on the path, so I can just call it as follows:
+picaxepreprocess.py -s --tablesertxd simple.bas # Syntax check and enable tablesertxd extension.
+```
+```basic
+'-----PREPROCESSED BY picaxepreprocess.py-----
+'----UPDATED AT 12:05PM, March 13, 2021----
+'----SAVING AS compiled.bas ----
+
+'---BEGIN simple.bas ---
+#picaxe 14m2      'CHIP VERSION PARSED
+main:
+;#sertxd("Hello World", cr, lf) 'Evaluated below
+w0 = 0
+w1 = 12
+gosub print_table_sertxd
+;#sertxd("That's a really annoying line!", cr,lf,"(because of all the characters that have to be ignored when in a string;",cr, lf, "such as ',', ''', ';', ')', '(', ']', '[', ':', '#', ...") 'Evaluated below
+w0 = 13
+w1 = 174
+gosub print_table_sertxd
+;#sertxd("This line contains dynamic content that cannot be printed", #w0) 'Evaluated below
+w0 = 175
+w1 = 232
+gosub print_table_sertxd
+    pause 5000
+    goto main
+
+'---Extras added by the preprocessor---
+print_table_sertxd:
+    for w0 = w0 to w1
+    readtable w0, b4
+    sertxd(b4)
+next w0
+
+    return
+
+table 0, ("Hello World",cr,lf) ;#sertxd
+table 13, ("That's a really annoying line!",cr,lf,"(because of all the characters that have to be ignored when in a string;",cr,lf,"such as ',', ''', ';', ')', '(', ']', '[', ':', '#', ...") ;#sertxd
+table 175, ("This line contains dynamic content that cannot be printed","?") ;#sertxd
+```
+And should print something like:
+```text
+Hello World
+That's a really annoying line!
+(because of all the characters that have to be ignored when in a string;
+such as ',', ''', ';', ')', '(', ']', '[', ':', '#', ... This line contains dynamic content that cannot be printed ?
+```
+</details>
+
 ### Usage with a makefile
 See the Makefile for an example of advanced usage. When properly configured, the makefile can automatically handle preprocessing the code, compiling it, and uploading to a picaxe chip by simply invoking `make compile` and run a syntax check with `make syntax`. The makefile also demonstrates usage with multiple picaxe chips with separate programs in the same project directory.
 
