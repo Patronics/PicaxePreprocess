@@ -341,6 +341,11 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                                     preprocessor_info(params)
                                     break
                             line = replace(key, macrovars[0], line)
+
+                            # # Make sure each line is commented out in a multiline macro if the surrounding code should be commented out
+                            if not is_if_active(0):
+                                line = line.replace("\n", "\n; ")
+
                             preprocessor_info(macrovars)
                             for num, name in macrovars.items():
                                     if name in line:
