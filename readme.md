@@ -49,6 +49,7 @@ picaxepreprocess.py [OPTIONS] [INPUTFILE]
 |       | `--nocolor`     |       no       | Disable terminal colour for systems that do not support it (Windows).                                                                                                |
 |       | `--noifs`       |       no       | Disable evaluation of `#if` and `#ifdef` - this will be left to the compiler if this flag is present.                                                                |
 |       | `--tablesertxd` |       no       | Enable a non standard extension that will evaluate a `;#sertxd` directive. See the [Table Sertxd Extension](#table-sertxd-extension) section below for more details. |
+|       | `--verbose`     |       no       | Print preproccessor debugging info                                                                                                                                   |
 | `-h`  | `--help`        |       no       | Display a text version of this help message                                                                                                                          |
 
 #### Optional switches only used if sending to the compiler
