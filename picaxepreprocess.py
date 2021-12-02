@@ -413,7 +413,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                             argnum+=1
                             if macrocontents.strip()==")":
                                 preprocessor_info("no parameters to macro")
-                                macros[macroname][0]="'Start of macro: "+macroname
+                                macros[macroname][0]="'Start of macro: "+macroname+"\n"
                                 preprocessor_info(macros)
                                 break
                             else:
