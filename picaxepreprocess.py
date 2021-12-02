@@ -483,7 +483,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                             output_file.write("gosub print_newline_sertxd\n")
 
                     elif enable_table_sertxd and workingline.lower().startswith(";#sertxd"): # non-standared tool to print from table
-                        print("Processing ;#sertxd: '{}'".format(line.strip()))
+                        preprocessor_info("Processing ;#sertxd: '{}'".format(line.strip()))
                         include_table_sertxd = True
                         table_chars = 0
                         args = line.lstrip()[9:].strip().lstrip("(")
@@ -530,7 +530,7 @@ File: {}, Line: {}
                                 # We actually need an int to evaluate for this
                                 preprocessor_error("'{}' is not a valid integer when defining 'TABLE_SERTXD_MEM_OFFSET'.")
                             
-                            print("Adding offset to sertxd table to start at {}".format(table_sertxd_address))
+                            preprocessor_info("Adding offset to sertxd table to start at {}".format(table_sertxd_address))
 
                         # Generate the line with the storage to fill to place at the bottom later.
                         table_sertxd_strings.append("{} {}, ({}) ;#sertxd\n".format(storage, table_sertxd_address, contents))
@@ -613,29 +613,29 @@ def table_sertxd_print_sub():
     # Address var
     if "TABLE_SERTXD_ADDRESS_VAR" in definitions:
         address_var = definitions["TABLE_SERTXD_ADDRESS_VAR"]
-        print("Address var changed to {}".format(address_var))
+        preprocessor_info("Address var changed to {}".format(address_var))
     if "TABLE_SERTXD_ADDRESS_VAR_L" in definitions:
         address_varl = definitions["TABLE_SERTXD_ADDRESS_VAR_L"]
-        print("Address var lower changed to {}".format(address_varl))
+        preprocessor_info("Address var lower changed to {}".format(address_varl))
     if "TABLE_SERTXD_ADDRESS_VAR_H" in definitions:
         address_varh = definitions["TABLE_SERTXD_ADDRESS_VAR_H"]
-        print("Address var upper changed to {}".format(address_varh))
+        preprocessor_info("Address var upper changed to {}".format(address_varh))
 
     # Address end var
     if "TABLE_SERTXD_ADDRESS_END_VAR" in definitions:
         end_var = definitions["TABLE_SERTXD_ADDRESS_END_VAR"]
-        print("Address end var changed to {}".format(end_var))
+        preprocessor_info("Address end var changed to {}".format(end_var))
     if "TABLE_SERTXD_ADDRESS_END_VAR_L" in definitions:
         end_varl = definitions["TABLE_SERTXD_ADDRESS_END_VAR_L"]
-        print("Address end var lower changed to {}".format(end_varl))
+        preprocessor_info("Address end var lower changed to {}".format(end_varl))
     if "TABLE_SERTXD_ADDRESS_END_VAR_H" in definitions:
         end_varh = definitions["TABLE_SERTXD_ADDRESS_END_VAR_H"]
-        print("Address end var upper changed to {}".format(end_varh))
+        preprocessor_info("Address end var upper changed to {}".format(end_varh))
 
     # Tmp byte
     if "TABLE_SERTXD_TMP_BYTE" in definitions:
         tmp_var = definitions["TABLE_SERTXD_TMP_BYTE"]
-        print("Tmp var changed to {}".format(tmp_var))
+        preprocessor_info("Tmp var changed to {}".format(tmp_var))
 
     # Generate and write the subroutines to the file
     with open (outputfilename, 'a') as output_file:
@@ -644,7 +644,7 @@ def table_sertxd_print_sub():
         if "TABLE_SERTXD_BACKUP_VARS" in definitions:
             output_file.write("backup_table_sertxd:\n")
             # Save to general purpose ram and reload after
-            print("Enableing backups")
+            preprocessor_info("Enabling backups")
             if "TABLE_SERTXD_BACKUP_LOC" in definitions:
                 try:
                     save_loc = int(definitions["TABLE_SERTXD_BACKUP_LOC"])
@@ -656,7 +656,7 @@ def table_sertxd_print_sub():
                     preprocessor_error("""Table sertxd cannot save temporary variables in ram location {}.
 This needs to be between 0 and 507 inclusive (takes 5 bytes from this number).""".format(save_loc))
 
-                print("Backup location changed to {}".format(save_loc))
+                preprocessor_info("Backup location changed to {}".format(save_loc))
 
             # Check that the high and low bytes of each word are defined if they are changed and backups are enabled
             if "TABLE_SERTXD_ADDRESS_VAR" in definitions and ("TABLE_SERTXD_ADDRESS_VAR_L" not in definitions or "TABLE_SERTXD_ADDRESS_VAR_H" not in definitions):
@@ -700,7 +700,7 @@ next {}
         for i in table_sertxd_strings:
             output_file.write(i)
 
-    print("Storing strings in table uses {} bytes".format(table_sertxd_address))
+    preprocessor_info("Storing strings in table uses {} bytes".format(table_sertxd_address))
 
 def table_sertxd_nl_sub():
     """ Appends the subroutine for printing a newline to the output file. If called many times, this
