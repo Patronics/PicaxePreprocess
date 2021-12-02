@@ -27,6 +27,8 @@ use_colour = True # Does not work on Windows, will end up with a lot of nonsense
                   # showing an error.
 use_ifs = True # Whether to evaluate preprocessor if statements
 
+verbose = False
+
 # Default options to pass to the compiler
 port = "/dev/ttyUSB0"
 chip = "08m2" # Must be lowercase m or x if included
@@ -68,7 +70,7 @@ Optional switches
                         ;#sertxd directive to automatically save, load and print
                         a string from table memory on supported chips. For
                         example:
-                            ;sertxd("Hello world", cr, lf)
+                            ;#sertxd("Hello world", cr, lf)
                         Syntax is the same as the sertxd command, although
                         dynamic content such as printing variables is not
                         supported. Two word and one byte variables are required
@@ -114,7 +116,7 @@ Optional switches
                         This flag also enables the non standard ;#sertxdnl
                         directive that prints a new line. When called many
                         times, this uses less program space than sertxd(cr, lf)
-
+        --verbose      Print preproccessor debugging info
     -h, --help         Display this help
 
 Optional switches only used if sending to the compiler
@@ -156,6 +158,7 @@ def main(argv):
     global compiler_path
     global use_colour
     global use_ifs
+    global verbose
     global enable_table_sertxd
 
     # Use the last argument as the file name if it does not start with a dash
@@ -167,7 +170,7 @@ def main(argv):
                 argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "tablesertxd"])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "verbose", "tablesertxd"])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -216,6 +219,9 @@ def main(argv):
             tidy = True
         elif opt in ("-P", "--compilepath"): #chose non-default path to compilers
             compiler_path = os.path.join(arg,'') #adds trailing slash if needed
+        elif opt in ("--verbose"): # Print out info as the preproccessor is running
+            verbose = True
+
     if not os.path.exists(inputfilename):
         if (inputfilename == "main.bas"):    #show help if likely run with no arguments
             preprocessor_error("'{}/{}' does not exist. Either specify an input file or put it in the same folder as this script with the name 'main.bas'".format(os.getcwd(), inputfilename), True)
@@ -290,7 +296,7 @@ def progparse(curfilename, called_from_line=None, called_from_file=None):
     global table_sertxd_address
 
     savingmacro=False
-    print("\nIncluding file " + curfilename)
+    preprocessor_info("\nIncluding file " + curfilename)
     path=os.path.dirname(os.path.abspath(inputfilename))+"/"
     if curfilename.startswith("/"):    #decide if an absolute or relative path
         curpath=""
@@ -338,13 +344,13 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1] # Get just the definition we are checking exists
                     active = is_if_active(0) and key in definitions # Evaluate based on the existence of the definition and the parent ifs whether the code should be run.
                     if_stack.append((active, active)) # Add to the stack
-                    print("{}: #ifdef. Stack is now: {}".format(count+1, if_stack))
+                    preprocessor_info("{}: #ifdef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
                 elif use_ifs and workingline.lower().startswith("#ifndef"):
                     key = workingline.replace("'", " ").replace(";", " ").strip().split()[1]
                     active = is_if_active(0) and key not in definitions
                     if_stack.append((active, active))
-                    print("{}: #ifndef. Stack is now: {}".format(count+1, if_stack))
+                    preprocessor_info("{}: #ifndef. Stack is now: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
                 # Ifs will be treated separately later after definitions are substituted.
                 elif use_ifs and workingline.lower().startswith("#elseifdef"): # ELSE and ELSEIF
@@ -355,7 +361,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     active = is_if_active(1) and not if_stack[-1][1] and key in definitions
                     if_stack[-1] = (active, if_stack[-1][1] or active)
                     line = "; {}".format(line)
-                    print("{}: #elseifdef. Stack is now: {}".format(count+1, if_stack))
+                    preprocessor_info("{}: #elseifdef. Stack is now: {}".format(count+1, if_stack))
                 elif use_ifs and workingline.lower().startswith("#elseifndef"):
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many elses or not enough ifs.
@@ -364,13 +370,13 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     active = is_if_active(1) and not if_stack[-1][1] and key not in definitions
                     if_stack[-1] = (active, if_stack[-1][1] or active)
                     line = "; {}".format(line)
-                    print("{}: #elseifndef. Stack is now: {}".format(count+1, if_stack))
+                    preprocessor_info("{}: #elseifndef. Stack is now: {}".format(count+1, if_stack))
                 elif use_ifs and workingline.lower().startswith("#else") and len(workingline.strip().split()[0]) == 5: # Else only - not elseif
                     if len(if_stack) == 0:
                         preprocessor_error("""Too many elses or not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
                     if_stack[-1] = (is_if_active(1) and not if_stack[-1][1], True)
-                    print("{}: #else. Stack is now: {}".format(count+1, if_stack))
+                    preprocessor_info("{}: #else. Stack is now: {}".format(count+1, if_stack))
                     # elsif only will be evaluated after definitions are substituted.
                     line = "; {}".format(line)
                 elif use_ifs and workingline.lower().startswith("#endif"):
@@ -379,7 +385,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
                     else:
                         if_stack.pop()
-                    print("{}: #endif. Stack afterwards is: {}".format(count+1, if_stack))
+                    preprocessor_info("{}: #endif. Stack afterwards is: {}".format(count+1, if_stack))
                     line = "; {}".format(line)
                 elif workingline.lower().startswith("#undef"): # Put undef up here so that substitutions happen afterwards
                     workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
@@ -394,9 +400,9 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     # Substitute defines (before it is added so that the define itself is not replaced)
                     for key,value in definitions.items():
                         if key in line:
-                            print("Replacing '{}' with ".format(line.strip()), end="")
+                            preprocessor_info("Replacing '{}' with ".format(line.strip()), end="")
                             line = replace(key, value,line) # Replace whole words only that are not in strings or comments
-                            print("'{}'".format(line.strip()))
+                            preprocessor_info("'{}'".format(line.strip()))
                             # line=line+"      'DEFINE: "+value+" SUBSTITUTED FOR "+key+"\n"
                     for key, macrovars in macros.items():
                         if key in line:
@@ -412,12 +418,12 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                                     
                                     macrocontents=macrocontents.split(",")[1].strip() # Remove the first parameter nd try again 
                                 else:
-                                    print("finished parsing macro contents")
+                                    preprocessor_info("finished parsing macro contents")
                                     params[argnum]=macrocontents.split(",")[0].rstrip()
-                                    print(params)
+                                    preprocessor_info(params)
                                     break
                             line = replace(key, macrovars[0], line)
-                            print(macrovars)
+                            preprocessor_info(macrovars)
                             for num, name in macrovars.items():
                                     if name in line:
                                         if num>0:
@@ -428,21 +434,21 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         active = is_if_active(1) and evaluate_basic(line.lstrip()[4:], count + 1, curfilename)
                         if_stack.append((active, active))
                         line = "; {}".format(line)
-                        print("{}: #if. Stack is now: {}".format(count+1, if_stack))
+                        preprocessor_info("{}: #if. Stack is now: {}".format(count+1, if_stack))
                     elif use_ifs and workingline.lower().startswith("#elseif "):
                         if len(if_stack) == 0:
                             preprocessor_error("""Not enough ifs.
     Error is before or at line {} in '{}'.""".format(count+1,curfilename))
                         active = is_if_active(1) and not if_stack[-1][1] and evaluate_basic(line.lstrip()[8:], count + 1, curfilename)
                         if_stack[-1] = (active, if_stack[-1][1] or active)
-                        print("{}: #elseif. Stack is now: {}".format(count+1, if_stack))
+                        preprocessor_info("{}: #elseif. Stack is now: {}".format(count+1, if_stack))
 
                 if is_if_active(0):
                     # Preprocessor check
                     if workingline.lower().startswith("#include"):
                         workingline=workingline[9:].lstrip().split("'")[0].split(";")[0].rstrip()     #remove #include text, comments, and whitespace
                         workingline=workingline.strip('"')         #remove quotation marks around path
-                        #print(workingline)
+                        #preprocessor_info(workingline)
                         with open (outputfilename, 'a') as output_file:
                             output_file.write("'---BEGIN "+workingline+" ---\n")
                         progparse(workingline,count+1,curfilename) # +1 for 0 indexing and to match up with the gui text editor line nums
@@ -451,7 +457,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         try:
                             definitions[workingline.split()[0]]=(workingline.split(None,1)[1])   #add to dictionary of definitions
                         except:
-                            print("Old define found, leaving intact")
+                            preprocessor_info("Old define found, leaving intact")
                             # Make it replace any call to itdelf with itself so that it is in the dictionary for ifdef
                             definitions[workingline.split()[0]] = workingline.split()[0]
                         
@@ -467,7 +473,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                     elif workingline.lower().startswith("#com"): # Set the serial port
                         port = workingline[5:].lstrip().split("'")[0].split(";")[0].rstrip()     # Remove #com text, comments, and whitespace
                         port = port.strip('"')         #remove quotation marks around path
-                        print("Setting serial port to '{}'".format(port))
+                        preprocessor_info("Setting serial port to '{}'".format(port))
                         with open (outputfilename, 'a') as output_file:
                             output_file.write(line.rstrip()+"      'SERIAL PORT PARSED\n")
 
@@ -549,7 +555,7 @@ File: {}, Line: {}
                         savingmacro=True
                         workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
                         macroname=workingline.split("(")[0].rstrip()
-                        print(macroname)
+                        preprocessor_info(macroname)
                         with open (outputfilename, 'a') as output_file:
                             output_file.write("'PARSED MACRO "+macroname)
                         macrocontents=workingline.split("(")[1].rstrip()
@@ -558,9 +564,9 @@ File: {}, Line: {}
                         while(1):
                             argnum+=1
                             if macrocontents.strip()==")":
-                                print("no parameters to macro")
+                                preprocessor_info("no parameters to macro")
                                 macros[macroname][0]="'Start of macro: "+macroname
-                                print(macros)
+                                preprocessor_info(macros)
                                 break
                             else:
                                 macrocontents=macrocontents.rstrip(")").strip("(")
@@ -568,7 +574,7 @@ File: {}, Line: {}
                                 if "," in macrocontents:
                                     macrocontents=macrocontents.split(",")[1].strip().rstrip()
                                 else:
-                                    print("finished parsing macro contents")
+                                    preprocessor_info("finished parsing macro contents")
                                     macros[macroname][0]="'--START OF MACRO: "+macroname+"\n"
                                     break
                     elif savingmacro==True:
@@ -804,7 +810,7 @@ def set_chip(new_chip: str) -> None:
                    "28x2", "40x2"]
     new_chip = new_chip.lower() # In case of 08M2 or 08m2
     if new_chip in valid_chips:
-        print("Setting the PICAXE chip to: '{}'".format(new_chip))
+        preprocessor_info("Setting the PICAXE chip to: '{}'".format(new_chip))
         chip = new_chip
         if (chip == "40x2"):
            chip = "28x2"   #28x2 and 40x2 use the same compiler
@@ -845,6 +851,10 @@ def preprocessor_warning(msg):
     print(msg)
     print()
 
+def preprocessor_info(*values, **kwargs):
+    """ Prints an info message if in verbose mode, otherwise does nothing. """
+    if verbose:
+        print(*values, **kwargs)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
