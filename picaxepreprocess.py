@@ -406,22 +406,13 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                             # line=line+"      'DEFINE: "+value+" SUBSTITUTED FOR "+key+"\n"
                     for key, macrovars in macros.items():
                         if key in line:
-                            params={}
-                            argnum=0
                             macrocontents=line.split(key)[1]
                             macrocontents=macrocontents.strip().strip("(").strip(")")
-                            while(1):
-                                argnum+=1
-                            
-                                if "," in macrocontents:
-                                    params[argnum]=macrocontents.split(",")[0].rstrip()   #
-                                    
-                                    macrocontents=macrocontents.split(",")[1].strip() # Remove the first parameter nd try again 
-                                else:
-                                    preprocessor_info("finished parsing macro contents")
-                                    params[argnum]=macrocontents.split(",")[0].rstrip()
-                                    preprocessor_info(params)
-                                    break
+
+                            params = {i + 1: m.rstrip() for i, m in enumerate(macrocontents.split(','))}
+                            preprocessor_info("finished parsing macro params")
+                            preprocessor_info(params)
+
                             line = replace(key, macrovars[0], line)
 
                             # # Make sure each line is commented out in a multiline macro if the surrounding code should be commented out
@@ -465,7 +456,7 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                             preprocessor_info("Old define found, leaving intact")
                             # Make it replace any call to itdelf with itself so that it is in the dictionary for ifdef
                             definitions[workingline.split()[0]] = workingline.split()[0]
-                        
+
                         with open (outputfilename, 'a') as output_file:
                             output_file.write("; " + line.rstrip()+"\n") # Comment out to make sure
                             # this script does all processing and there isn't the risk of the
@@ -563,25 +554,13 @@ File: {}, Line: {}
                         preprocessor_info(macroname)
                         with open (outputfilename, 'a') as output_file:
                             output_file.write("'PARSED MACRO "+macroname)
-                        macrocontents=workingline.split("(")[1].rstrip()
-                        macros[macroname]={}
-                        argnum=0
-                        while(1):
-                            argnum+=1
-                            if macrocontents.strip()==")":
-                                preprocessor_info("no parameters to macro")
-                                macros[macroname][0]="'Start of macro: "+macroname+"\n"
-                                preprocessor_info(macros)
-                                break
-                            else:
-                                macrocontents=macrocontents.rstrip(")").strip("(")
-                                macros[macroname][argnum]=macrocontents.split(",")[0].rstrip()   #create spot in dictionary for macro variables, but don't populate yet
-                                if "," in macrocontents:
-                                    macrocontents=macrocontents.split(",")[1].strip().rstrip()
-                                else:
-                                    preprocessor_info("finished parsing macro contents")
-                                    macros[macroname][0]="'--START OF MACRO: "+macroname+"\n"
-                                    break
+                        macrocontents=workingline.split("(", maxsplit=1)[1].split(")", maxsplit=1)[0].rstrip()
+
+                        macros[macroname] = {i + 1: m.rstrip() for i, m in enumerate(macrocontents.split(','))}
+                        macros[macroname][0]="'--START OF MACRO: "+macroname+"\n"
+                        preprocessor_info("finished parsing macro contents")
+                        preprocessor_info(macros[macroname])
+
                     elif savingmacro==True:
                         if workingline.lower().startswith("#endmacro"):
                             savingmacro=False
