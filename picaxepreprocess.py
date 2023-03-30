@@ -11,6 +11,8 @@
 # TODO: Remove extra comment ; added for ifs
 
 import sys, getopt, os, datetime, re, os.path, subprocess
+has_requests = False
+
 inputfilename = 'main.bas'
 outputfilename = 'compiled.bas'
 outputpath = ""
@@ -47,36 +49,38 @@ def print_help():
 picaxepreprocess.py [OPTIONS] [INPUTFILE]
 
 Optional switches
-    -i, --ifile=       Input file (default main.bas). Flag not required if it is
-                       the last argument given.
-    -o, --ofile=       Output file (default compiled.bas)
-    -u, --upload       Send the file to the compiler if this option is included.
-    -s, --syntax       Send the file to the compiler for a syntax check only (no download)
-        --nocolor      Disable terminal colour for systems that do not support it (Windows).
-        --noifs        Disable evaluation of #if and #ifdef - this will be left to the compiler if present.
-        --verbose      Print preproccessor debugging info
-    -h, --help         Display this help
+    -i, --ifile=         Input file (default main.bas). Flag not required if it is
+                         the last argument given.
+    -o, --ofile=         Output file (default compiled.bas)
+    -u, --upload         Send the file to the compiler if this option is included.
+        --online-compile Use the online compiler and output a compiled .axe file
+    -s, --syntax         Send the file to the compiler for a syntax check only (no download)
+        --online-syntax  Use the online compiler for a syntax check only (no download)
+        --nocolor        Disable terminal colour for systems that do not support it (Windows).
+        --noifs          Disable evaluation of #if and #ifdef - this will be left to the compiler if present.
+        --verbose        Print preproccessor debugging info
+    -h, --help           Display this help
 
 Optional switches only used if sending to the compiler
-    -v, --variant=     Variant (default 08m2)
-                       (alternatively use #PICAXE directive within the program.
-                       This option will be ignored if #PICAXE is used)
-    -s, --syntax       Syntax check only (no download)
-    -f, --firmware     Firmware check only (no download)
-    -c, --comport=     Assign COM/USB port device (default /dev/ttyUSB0)
-                       (alternately use #COM directive within program. This option
-                       will be ignored if #COM is used). There should be a space
-                       between the -c and the port, unlike the compilers.
-    -d, --debug        Leave port open for debug display (b0-13)
-        --debughex     Leave port open for debug display (hex mode)
-    -e  --edebug       Leave port open for debug display (b14-b27)
-        --edebughex    Leave port open for debug display (hex mode)
-    -t, --term         Leave port open for sertxd display
-        --termhex      Leave port open for sertxd display (hex mode)
-        --termint      Leave port open for sertxd display (int mode)
-    -p, --pass         Add pass message to error report file
-        --tidy         Remove the output file on completion if in upload mode.
-    -P  --compilepath= specify the path to the compilers directory (defaults to /usr/local/lib/picaxe/)
+    -v, --variant=       Variant (default 08m2)
+                         (alternatively use #PICAXE directive within the program.
+                         This option will be ignored if #PICAXE is used)
+    -s, --syntax         Syntax check only (no download)
+    -f, --firmware       Firmware check only (no download)
+    -c, --comport=       Assign COM/USB port device (default /dev/ttyUSB0)
+                         (alternately use #COM directive within program. This option
+                         will be ignored if #COM is used). There should be a space
+                         between the -c and the port, unlike the compilers.
+    -d, --debug          Leave port open for debug display (b0-13)
+        --debughex       Leave port open for debug display (hex mode)
+    -e  --edebug         Leave port open for debug display (b14-b27)
+        --edebughex      Leave port open for debug display (hex mode)
+    -t, --term           Leave port open for sertxd display
+        --termhex        Leave port open for sertxd display (hex mode)
+        --termint        Leave port open for sertxd display (int mode)
+    -p, --pass           Add pass message to error report file
+        --tidy           Remove the output file on completion if in upload mode.
+    -P  --compilepath=   specify the path to the compilers directory (defaults to /usr/local/lib/picaxe/)
 
 Preprocessor for PICAXE microcontrollers.
 See https://github.com/Patronics/PicaxePreprocess for more info.
@@ -88,6 +92,7 @@ def main(argv):
     global outputfilename
     global outputpath
     global send_to_compiler
+    global online_compiler
     global port
     global command
     global tidy
@@ -105,7 +110,7 @@ def main(argv):
                 argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "verbose"])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "verbose", "online-syntax", "online-compile"])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -123,11 +128,17 @@ def main(argv):
             outputfilename = arg
         elif opt in ("-u", "--upload"):
             send_to_compiler = True
+        elif opt in ("--online-compile"):
+            online_compiler = True
+            compiler_path = "https://picaxecloud.com/compiler/compile.json"
         elif opt in ("-v", "--variant"): # Picaxe variant
             set_chip(arg)
         elif opt in ("-s", "--syntax"): # Syntax only
             send_to_compiler = True
             command.append("-s")
+        elif opt in ("--online-syntax"):
+            online_compiler = True
+            compiler_path = "https://picaxecloud.com/compiler/check.json"
         elif opt in ("-f", "--firmware"): # Firmware check
             command.append("-f")
         elif opt in ("-c", "--comport"): # Serial port given
@@ -203,8 +214,16 @@ path with -P?""".format(command[0]))
             os.remove(outputfilename)
             err_file = outputfilename.replace("."+outputfilename.split(".")[-1],"") + ".err" # Calculate the name of the error file
             os.remove(err_file)
-
-
+    if online_compiler:
+        try:
+            import requests
+        except ImportError:
+            preprocessor_error("""Using the online compiler requires the python 'requests' module
+Install this module with the command
+python3 -m pip install requests
+and try again, or use the offline compiler""")
+        preprocessor_warning("online compiler not fully implemented yet, please check back later")
+        #TODO FINISH ONLINE COMPILER IMPLEMENTATION BASED ON haxepad.html
     print()
     print("Done.")
                 
