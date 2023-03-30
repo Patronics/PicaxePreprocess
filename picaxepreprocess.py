@@ -498,14 +498,21 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                                 # This particular char is not a string (hopefully a constant and not someone trying to print a variable). Add 1 byte    
                                 table_chars += 1
                                 if args[i].strip()[0] =='#': # Ignore print variable hash values as they cannot be stored in table. Printing the var as an ascii value will still slip through and cause errors.
-                                    preprocessor_warning("""There has been a call to print a variable in a ;#sertxd directive.
+                                    preprocessor_warning("""There has been a call to print a variable's numeric value with '#' in a ;#sertxd directive.
 This is not possible and will be replaced with a '?'.
-Any calls to print variables as ASCII chars without the '#' will have slipped
+Any calls to print variables as named symbols as ascii chars (without the '#') will have slipped
 through and may cause cryptic errors.
 File: {}, Line: {}
 '{}'""".format(curfilename, count+1, line))
                                     args[i] = '"?"'
-                        
+                                if ((args[i].strip()[0] =='b' or args[i].strip()[0] =='w') and args[i].strip()[1:].isnumeric()): # Ignore print variables as they cannot be stored in table. Printing symbols of variables will still slip through and cause errors.
+                                            preprocessor_warning("""There has been a call to print a variable in a ;#sertxd directive.
+This is not possible and will be replaced with a '?'.
+Any calls to print variables as named symbols will slip
+through and may cause cryptic errors.
+File: {}, Line: {}
+'{}'""".format(curfilename, count+1, line))
+                                            args[i] = '"?"'
                         # Add the required function calls and numbers to the output file
                         contents = ",".join(args)
 
@@ -550,7 +557,8 @@ File: {}, Line: {}
                             
                         # Add the number of bytes to get the location for the next string to start.
                         table_sertxd_address += table_chars
-
+                        if ((table_sertxd_address >= 255 and (('m2' not in chip) or storage == "eeprom")) or (table_sertxd_address >= 512)):
+                            preprocessor_warning("overflowing available table or eeprom memory for ;#sertxd directive, resulting program will not compile")
                     elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
                         savingmacro=True
                         workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()

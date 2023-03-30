@@ -7,7 +7,7 @@ main:
     ;#sertxd("Hello World", cr, lf)
     ;#sertxd("That's a really annoying line!", cr,lf,"(because of all the characters that have to be ignored when in a string;",cr, lf, "such as ',', ''', ';', ')', '(', ']', '[', ':', '#', ...")
     ;#sertxd("This line contains dynamic content that cannot be printed", #w0)
-    ;#sertxd("more:", w0, b12, c5)
+    ;#sertxd("This line contains even more content and is too much to print")
     pause 5000
     goto main
 
