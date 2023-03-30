@@ -505,14 +505,15 @@ through and may cause cryptic errors.
 File: {}, Line: {}
 '{}'""".format(curfilename, count+1, line))
                                     args[i] = '"?"'
-                                if ((args[i].strip()[0] =='b' or args[i].strip()[0] =='w') and args[i].strip()[1:].isnumeric()): # Ignore print variables as they cannot be stored in table. Printing symbols of variables will still slip through and cause errors.
-                                            preprocessor_warning("""There has been a call to print a variable in a ;#sertxd directive.
+                                if ((args[i].strip()[0] =='b' or args[i].strip()[0] =='w' or args[i].strip()[0:3] == 'bit') and (args[i].strip()[1:].isnumeric() or (args[i].strip()[0:3] == 'bit' and args[i].strip()[3:].isnumeric()))):
+                                    # Ignore print variables as they cannot be stored in table. Printing symbols of variables will still slip through and cause errors.
+                                    preprocessor_warning("""There has been a call to print a variable in a ;#sertxd directive.
 This is not possible and will be replaced with a '?'.
 Any calls to print variables as named symbols will slip
 through and may cause cryptic errors.
 File: {}, Line: {}
 '{}'""".format(curfilename, count+1, line))
-                                            args[i] = '"?"'
+                                    args[i] = '"?"'
                         # Add the required function calls and numbers to the output file
                         contents = ",".join(args)
 
