@@ -10,7 +10,7 @@
 # TODO: Debug levels
 # TODO: Remove extra comment ; added for ifs
 
-import sys, getopt, os, datetime, re, os.path, subprocess, json
+import sys, getopt, os, datetime, re, os.path, subprocess, json, base64
 has_requests = False
 
 inputfilename = 'main.bas'
@@ -228,8 +228,7 @@ Install this module with the command
 python3 -m pip install requests
 and try again, or use the offline compiler""")
         with open (outputfilename, 'r') as processed_file:
-            #preprocessor_warning("online compiler not fully implemented yet, please check back later")
-            # TODO: FINISH ONLINE COMPILER IMPLEMENTATION BASED ON haxepad.html
+            #produce 'form' layout online compiler expects
             compileFormData = {'platform':chip, 'code':processed_file.read()}
             compile_request = requests.post(compiler_path, json=compileFormData)
             compile_result = json.loads(compile_request.text)
@@ -238,9 +237,9 @@ and try again, or use the offline compiler""")
             elif "errors" in compile_result.keys():
                 preprocessor_error(f"\nsyntax check failed on line: \n{compile_result['errors'][0]}\n{compile_result['errors'][1]}\n{compile_result['errors'][2]}")
             elif "axe" in compile_result:
-                print(compile_result)
-                with open (f'{outputfilename}.axe', 'w') as compiled_file:
-                    compiled_file.write(compile_result['axe'])
+                #print(compile_result)
+                with open (f'{outputfilename}.axe', 'wb') as compiled_file:
+                    compiled_file.write(base64.b64decode(compile_result['axe']))
                     preprocessor_success(f"online compile sucessful, saved to {outputfilename}.axe")
     print()
     print("Done.")
