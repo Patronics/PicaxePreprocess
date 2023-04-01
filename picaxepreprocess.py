@@ -233,14 +233,18 @@ and try again, or use the offline compiler""")
             compile_request = requests.post(compiler_path, json=compileFormData)
             compile_result = json.loads(compile_request.text)
             if "status" in compile_result.keys():
-                preprocessor_success("syntax check result: " + compile_result['status'])
+                print(f"\u001b[1m\u001b[32mSYNTAX CHECK SUCCESS: {compile_result['status']}\u001b[0m")
             elif "errors" in compile_result.keys():
-                preprocessor_error(f"\nsyntax check failed on line: \n{compile_result['errors'][0]}\n{compile_result['errors'][1]}\n{compile_result['errors'][2]}")
+                print(f"""
+\u001b[1m\u001b[31mSYNTAX CHECK FAILED\u001b[0m\u001b[1m on line:
+{compile_result['errors'][0]}
+{compile_result['errors'][1]}
+{compile_result['errors'][2]}\u001b[0m""")
             elif "axe" in compile_result:
-                #print(compile_result)
+                #base64 decode the result into the .axe file expected
                 with open (f'{outputfilename}.axe', 'wb') as compiled_file:
                     compiled_file.write(base64.b64decode(compile_result['axe']))
-                    preprocessor_success(f"online compile sucessful, saved to {outputfilename}.axe")
+                    preprocessor_success(f"\u001b[1monline compile sucessful, saved to {outputfilename}.axe\u001b[0m")
     print()
     print("Done.")
                 
