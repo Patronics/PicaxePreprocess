@@ -10,7 +10,7 @@
 # TODO: Debug levels
 # TODO: Remove extra comment ; added for ifs
 
-import sys, getopt, os, datetime, re, os.path, subprocess
+import sys, getopt, os, datetime, re, os.path, subprocess, json
 has_requests = False
 
 inputfilename = 'main.bas'
@@ -40,6 +40,8 @@ compiler_name = "picaxe"
 compiler_extension = "" # File extension (.exe...). For linux anyway, there is none, but including
                         # just in case it is different for other platforms.
 send_to_compiler = False
+online_compiler = False
+syntax_check_only = False
 command = [""] # Empty string at the first position will be replaced by the compiler name and path.
 tidy = False
 
@@ -58,7 +60,7 @@ Optional switches
         --online-syntax  Use the online compiler for a syntax check only (no download)
         --nocolor        Disable terminal colour for systems that do not support it (Windows).
         --noifs          Disable evaluation of #if and #ifdef - this will be left to the compiler if present.
-        --verbose        Print preproccessor debugging info
+        --verbose        Print preprocessor debugging info
     -h, --help           Display this help
 
 Optional switches only used if sending to the compiler
@@ -93,6 +95,7 @@ def main(argv):
     global outputpath
     global send_to_compiler
     global online_compiler
+    global syntax_check_only
     global port
     global command
     global tidy
@@ -135,9 +138,11 @@ def main(argv):
             set_chip(arg)
         elif opt in ("-s", "--syntax"): # Syntax only
             send_to_compiler = True
+            syntax_check_only = True #currently unused in this path
             command.append("-s")
         elif opt in ("--online-syntax"):
             online_compiler = True
+            syntax_check_only = True
             compiler_path = "https://picaxecloud.com/compiler/check.json"
         elif opt in ("-f", "--firmware"): # Firmware check
             command.append("-f")
@@ -222,8 +227,22 @@ path with -P?""".format(command[0]))
 Install this module with the command
 python3 -m pip install requests
 and try again, or use the offline compiler""")
-        preprocessor_warning("online compiler not fully implemented yet, please check back later")
-        #TODO FINISH ONLINE COMPILER IMPLEMENTATION BASED ON haxepad.html
+        with open (outputfilename, 'r') as processed_file:
+            #preprocessor_warning("online compiler not fully implemented yet, please check back later")
+            # TODO: FINISH ONLINE COMPILER IMPLEMENTATION BASED ON haxepad.html
+            compileFormData = {'platform':chip, 'code':processed_file.read()}
+            compile_request = requests.post(compiler_path, json=compileFormData)
+            compile_result = json.loads(compile_request.text)
+            if "status" in compile_result.keys():
+                preprocessor_success("syntax check result: " + compile_result['status'])
+            elif "errors" in compile_result.keys():
+                # TODO: show caret positioned properly.
+                preprocessor_error(f"\nsyntax check failed on line: \n{compile_result['errors'][0]}\n{compile_result['errors'][2]}")
+            elif "axe" in compile_result:
+                print(compile_result)
+                with open (f'{outputfilename}.axe', 'w') as compiled_file:
+                    compiled_file.write(compile_result['axe'])
+                    preprocessor_success(f"online compile sucessful, saved to {outputfilename}.axe")
     print()
     print("Done.")
                 
@@ -556,5 +575,16 @@ def preprocessor_info(*values, **kwargs):
     if verbose:
         print(*values, **kwargs)
 
+def preprocessor_success(msg):
+    """ Prints a success status message. Similar to warning. """
+    if use_colour:
+        print("\u001b[1m\u001b[32m", end="") # Bold Green
+    print("Successs")
+    if use_colour:
+        print("\u001b[0m", end="") # Reset
+    print(msg)
+
+
 if __name__ == "__main__":
     main(sys.argv[1:])
+    
