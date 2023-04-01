@@ -236,8 +236,7 @@ and try again, or use the offline compiler""")
             if "status" in compile_result.keys():
                 preprocessor_success("syntax check result: " + compile_result['status'])
             elif "errors" in compile_result.keys():
-                # TODO: show caret positioned properly.
-                preprocessor_error(f"\nsyntax check failed on line: \n{compile_result['errors'][0]}\n{compile_result['errors'][2]}")
+                preprocessor_error(f"\nsyntax check failed on line: \n{compile_result['errors'][0]}\n{compile_result['errors'][1]}\n{compile_result['errors'][2]}")
             elif "axe" in compile_result:
                 print(compile_result)
                 with open (f'{outputfilename}.axe', 'w') as compiled_file:
