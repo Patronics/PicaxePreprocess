@@ -554,8 +554,6 @@ File: {}, Line: {}
                             
                         # Add the number of bytes to get the location for the next string to start.
                         table_sertxd_address += table_chars
-                        if ((table_sertxd_address >= 255 and (('m2' not in chip) or storage == "eeprom")) or (table_sertxd_address >= 512)):
-                            preprocessor_warning("overflowing available table or eeprom memory for ;#sertxd directive, resulting program will not compile")
                     elif workingline.lower().startswith("#macro"):     #Automatically substitute #macros
                         savingmacro=True
                         workingline=workingline[7:].lstrip().split("'")[0].split(";")[0].rstrip()
@@ -692,8 +690,17 @@ next {}
         output_file.write("    return\n\n")
         for i in table_sertxd_strings:
             output_file.write(i)
+    
+    # Calculate the number of bytes used.
+    allowed_chars = 256
+    if 'm2' in chip and storage == "readtable":
+        # M2 Parts have 512 bytes in the table location, all other parts and eeprom is 256 bytes max.
+        allowed_chars = 512
+    print("Storing strings in table / eeprom uses {} bytes of the {} allowed.".format(table_sertxd_address, allowed_chars))
 
-    preprocessor_info("Storing strings in table uses {} bytes".format(table_sertxd_address))
+    # Check to see if we went over
+    if table_sertxd_address > allowed_chars:
+        preprocessor_warning("Overflowing available table or eeprom memory for ;#sertxd directive, resulting program will not compile.")
 
 def table_sertxd_nl_sub():
     """ Appends the subroutine for printing a newline to the output file. If called many times, this
