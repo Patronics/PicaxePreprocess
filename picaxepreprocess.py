@@ -565,7 +565,7 @@ File: {}, Line: {}
                             output_file.write("'PARSED MACRO "+macroname)
                         macrocontents=workingline.split("(", maxsplit=1)[1].split(")", maxsplit=1)[0].rstrip()
 
-                        macros[macroname] = {i + 1: m.rstrip() for i, m in enumerate(macrocontents.split(','))}
+                        macros[macroname] = {i + 1: m.strip() for i, m in enumerate(macrocontents.split(','))}
                         macros[macroname][0]="'--START OF MACRO: "+macroname+"\n"
                         preprocessor_info("finished parsing macro contents")
                         preprocessor_info(macros[macroname])
