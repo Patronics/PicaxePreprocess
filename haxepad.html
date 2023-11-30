@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>hAXEPad</h1>
+
+<form method="post" id="compileform">
+  <label for="code">code:</label><br>
+  <textarea id="code" name="code" rows="20" cols="80"></textarea><br><br>
+  <label for="platform">platform:</label>
+  <select id='platform' name='platform'>
+  <option value="08m2">08M2</option>
+  <option value="14m2">14M2</option>
+  <option value="18m2">18M2</option>
+  <option value="20m2">20M2</option>
+  <option value="20x2">20X2</option>
+  <option value="28x1">28X1</option>
+  <option value="28x2">28X2</option>
+  <option value="40x1">40X1</option>
+  <option value="40x2">40X2</option>
+</select><br><br>
+  <button value="compile" onclick="sendCompile(); return false;">compile</button>
+  <button value="syntax check" onclick="sendSyntax(); return false;">syntax check</button>
+</form>
+<p>Click on the submit button, and the input will compiled.</p>
+<br><br>
+raw output:<br>
+<div id="resultsDisplay" style='width: 90%; max-height: 20vh; line-height: 1.2em; overflow-wrap: break-word ;overflow:scroll; background-color:lightgreen;'></div>
+<div id="responseDisplay" style='width: 90%; max-height: 20vh; line-height: 1.2em; overflow-wrap: break-word ;overflow:scroll; background-color:skyblue;'></div>
+
+<script>
+form=document.getElementById("compileform");
+function sendCompile(){
+    form.action="https://picaxecloud.com/compiler/compile.json";
+    getResponse();
+    //form.submit();
+}
+
+function sendSyntax(){
+    form.action="https://picaxecloud.com/compiler/check.json";
+    getResponse();
+    //form.submit();
+}
+
+//document.getElementById('compileform').addEventListener('submit', (event) => {
+    //event.preventDefault();
+function getResponse(){
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", form.action); 
+    xhr.onload = function(event){ 
+        var resp=JSON.parse(event.target.response);
+        document.getElementById("responseDisplay").innerText=event.target.response;
+        //alert("Success, server responded with: " + event.target.response); // raw response
+        if(resp.hasOwnProperty('axe')){ //compile successful
+            document.getElementById("resultsDisplay").innerText="compile successful";
+            //TODO offer downloadable axe file
+        }if(resp.hasOwnProperty('status')){ //syntax check passed
+            document.getElementById("resultsDisplay").innerText="syntax check ok";
+        }if(resp.hasOwnProperty('errors')){ //syntax error
+            document.getElementById("resultsDisplay").innerText="error: "+resp.errors;
+            
+        }
+        
+    }; 
+    // or onerror, onabort
+    var formData = new FormData(document.getElementById("compileform")); 
+    xhr.send(formData);
+};
+
+</script>
+
+</body>
+</html>
+

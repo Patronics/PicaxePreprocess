@@ -38,25 +38,28 @@ Optional switches
     -h, --help         Display this help
 
 Optional switches only used if sending to the compiler
-    -v, --variant=     Variant (default 08m2)
-                       (alternatively use #PICAXE directive within the program.
-                       This option will be ignored if #PICAXE is used)
-    -s, --syntax       Syntax check only (no download)
-    -f, --firmware     Firmware check only (no download)
-    -c, --comport=     Assign COM/USB port device (default /dev/ttyUSB0)
-                       (alternately use #COM directive within program. This option
-                       will be ignored if #COM is used). There should be a space
-                       between the -c and the port, unlike the compilers.
-    -d, --debug        Leave port open for debug display (b0-13)
-        --debughex     Leave port open for debug display (hex mode)
-    -e  --edebug       Leave port open for debug display (b14-b27)
-        --edebughex    Leave port open for debug display (hex mode)
-    -t, --term         Leave port open for sertxd display
-        --termhex      Leave port open for sertxd display (hex mode)
-        --termint      Leave port open for sertxd display (int mode)
-    -p, --pass         Add pass message to error report file
-        --tidy         Remove the output file on completion if in upload mode.
-    -P  --compilepath= specify the path to the compilers directory (defaults to /usr/local/lib/picaxe/)
+    -v, --variant=       Variant (default 08m2)
+                         (alternatively use #PICAXE directive within the program.
+                         This option will be ignored if #PICAXE is used)
+    -s, --syntax         Syntax check only (no download)
+    -f, --firmware       Firmware check only (no download)
+    -c, --comport=       Assign COM/USB port device (default /dev/ttyUSB0)
+                         (alternately use #COM directive within program. This option
+                         will be ignored if #COM is used). There should be a space
+                         between the -c and the port, unlike the compilers.
+    -d, --debug          Leave port open for debug display (b0-13)
+        --debughex       Leave port open for debug display (hex mode)
+    -e  --edebug         Leave port open for debug display (b14-b27)
+        --edebughex      Leave port open for debug display (hex mode)
+    -t, --term           Leave port open for sertxd display
+        --termhex        Leave port open for sertxd display (hex mode)
+        --termint        Leave port open for sertxd display (int mode)
+    -p, --pass           Add pass message to error report file
+        --tidy           Remove the output file on completion if in upload mode.
+    -P  --compilepath=   specify the path to the compilers directory (defaults to /usr/local/lib/picaxe/)
+        --online-compile Use the online compiler and output a compiled .axe file (instead of the local compiler)
+        --online-syntax  Use the online compiler for a syntax check only (no download)
+
 ```
 
 See the Makefile for an example of advanced usage. When properly configured, the makefile can automatically handle preprocessing the code, compiling it, and uploading to a picaxe chip by simply invoking `make compile` and run a syntax check with `make syntax`. The makefile also demonstrates usage with multiple picaxe chips with separate programs in the same project directory.
