@@ -1,6 +1,11 @@
 #picaxe 08m2
 #DEFINE TABLE_SERTXD_USE_EEPROM
 #DEFINE TABLE_SERTXD_MEM_OFFSET 10
+
+#DEFINE TABLE_SEROUT_BAUD N2400_16
+#DEFINE TABLE_SEROUT_PIN C.0
+
+
 ;symbols representing constants can be printed without issue
 symbol c5 = $c5
 main:
@@ -9,6 +14,8 @@ main:
     ;#sertxd("This line contains dynamic content that can't be printed", #w0)
     ;#sertxd("more:", w0, b12, c5)
     ;#sertxd("a bit more:", bit4)
+    ;#serout("can use other pins too")
+    ;#serout("using serout instead of sertxd")
     pause 5000
     goto main
 

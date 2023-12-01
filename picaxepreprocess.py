@@ -45,6 +45,8 @@ tidy = False
 # Custom, non standared preprocessor directive to print from table
 include_table_sertxd = False # Whether there are and ;#sertxd directives in the code requiring extra code to be added to the end.
 enable_table_sertxd = False # The --tablesertxd switch must be used to enable searching for ;#sertxd and ;#sertxdnl directives.
+include_table_serout = False # Whether there are and ;#sertxd directives in the code requiring extra code to be added to the end.
+enable_table_serout = False # The --tableserout switch must be used to enable searching for ;#sertxd and ;#sertxdnl directives.
 table_sertxd_address = 0
 table_sertxd_strings = []
 table_sertxd_use_eeprom = False
@@ -116,6 +118,12 @@ Optional switches
                         This flag also enables the non standard ;#sertxdnl
                         directive that prints a new line. When called many
                         times, this uses less program space than sertxd(cr, lf)
+        --tableserout  Equivalent to the tablesertxd option, but uses the serout
+                        command, allowing arbitrary ports and baud rates to be
+                        specified via the following additional defines (in 
+                        addition to supporting the same defines as tablesertxd)
+            TABLE_SEROUT_PIN               no default (required)
+            TABLE_SEROUT_BAUD              N4800
         --verbose      Print preproccessor debugging info
     -h, --help         Display this help
 
@@ -160,6 +168,7 @@ def main(argv):
     global use_ifs
     global verbose
     global enable_table_sertxd
+    global enable_table_serout
 
     # Use the last argument as the file name if it does not start with a dash
     if (len(argv) == 1 or len(argv) >= 2 and argv[-2] not in ("-o", "-v", "-c")) and argv[-1][0] != "-": # Double check the second last is -i if needed
@@ -170,7 +179,7 @@ def main(argv):
                 argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "verbose", "tablesertxd"])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "verbose", "tablesertxd","tableserout"])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -180,6 +189,9 @@ def main(argv):
         elif opt == "--noifs":
             use_ifs = False
         elif opt == "--tablesertxd":
+            enable_table_sertxd = True
+        elif opt == "--tableserout":
+            enable_table_serout = True
             enable_table_sertxd = True
         elif opt in ("-h", "--help"):
             print_help()
@@ -244,8 +256,9 @@ def main(argv):
 
     # Sertxd table extension subroutines and data insertion
     if include_table_sertxd:
-        table_sertxd_print_sub()
-
+        table_sertxd_print_sub("sertxd")
+    if include_table_serout:
+        table_sertxd_print_sub("serout")
     # Add the subroutine for printing a new line. If used many times, this can use less program memory than directly calling sertxd(cr, lf)
     if include_newline_sertxd:
         table_sertxd_nl_sub()
@@ -292,7 +305,9 @@ def progparse(curfilename, called_from_line=None, called_from_file=None):
     global chip
     global port
     global include_table_sertxd
+    global include_table_serout
     global include_newline_sertxd
+    global include_newline_serout
     global table_sertxd_address
 
     savingmacro=False
@@ -478,9 +493,25 @@ Called from line {} in '{}'""".format(curpath, curfilename, called_from_line, ca
                         with open (outputfilename, 'a') as output_file:
                             output_file.write("gosub print_newline_sertxd\n")
 
-                    elif enable_table_sertxd and workingline.lower().startswith(";#sertxd"): # non-standared tool to print from table
-                        preprocessor_info("Processing ;#sertxd: '{}'".format(line.strip()))
-                        include_table_sertxd = True
+                    elif enable_table_sertxd and (workingline.lower().startswith(";#sertxd") or workingline.lower().startswith(";#serout")): # non-standard tool to print from table
+                        baud_val = "N4800"   #used for serout directive
+                        pin_val = "unset"     #used for serout directive
+                        table_print_type = "unset"
+                        if workingline.lower().startswith(";#sertxd"):   #determine type of printing needed
+                            preprocessor_info("Processing ;#sertxd: '{}'".format(line.strip()))
+                            include_table_sertxd = True
+                            table_print_type = "sertxd"
+                        elif workingline.lower().startswith(";#serout"):
+                            preprocessor_info("Processing ;#serout: '{}'".format(line.strip()))
+                            include_table_serout = True
+                            table_print_type = "serout"
+                            if "TABLE_SEROUT_BAUD" in definitions:
+                                baud_val = definitions["TABLE_SEROUT_BAUD"]
+                            if "TABLE_SEROUT_PIN" in definitions:
+                                pin_val = definitions["TABLE_SEROUT_PIN"]
+                            else:
+                                preprocessor_error("TABLE_SEROUT_PIN must be defined to use ;#serout directive")
+                        
                         table_chars = 0
                         args = line.lstrip()[9:].strip().lstrip("(")
                         args, _ = extract_args(args, 0, ")")
@@ -537,7 +568,7 @@ File: {}, Line: {}
                             preprocessor_info("Adding offset to sertxd table to start at {}".format(table_sertxd_address))
 
                         # Generate the line with the storage to fill to place at the bottom later.
-                        table_sertxd_strings.append("{} {}, ({}) ;#sertxd\n".format(storage, table_sertxd_address, contents))
+                        table_sertxd_strings.append("{} {}, ({}) ;#{}\n".format(storage, table_sertxd_address, contents, table_print_type))
 
                         # Write the call to the print_table_sertxd subroutine
                         with open (outputfilename, 'a') as output_file:
@@ -550,7 +581,7 @@ File: {}, Line: {}
                             # Set the required variables and call the print subroutine
                             output_file.write("{} = {}\n".format(address_var, table_sertxd_address))
                             output_file.write("{} = {}\n".format(end_var, table_chars + table_sertxd_address - 1))
-                            output_file.write("gosub print_table_sertxd\n")
+                            output_file.write("gosub print_table_{}\n".format(table_print_type))
                             
                         # Add the number of bytes to get the location for the next string to start.
                         table_sertxd_address += table_chars
@@ -590,7 +621,8 @@ Message: {}
         with open (outputfilename, 'a') as output_file:
             output_file.write("\n'---END "+curfilename+"---\n")
 
-def table_sertxd_print_sub():
+def table_sertxd_print_sub(print_type):
+    preprocessor_info("generating table_{} print subroutine".format(print_type))
     """ Generates the subroutine for the table sertxd extension and adds it to the output file """
     address_var = "w0"
     address_varl = "b0"
@@ -626,6 +658,14 @@ def table_sertxd_print_sub():
     if "TABLE_SERTXD_TMP_BYTE" in definitions:
         tmp_var = definitions["TABLE_SERTXD_TMP_BYTE"]
         preprocessor_info("Tmp var changed to {}".format(tmp_var))
+    
+    if "TABLE_SEROUT_BAUD" in definitions:
+        baud_val = definitions["TABLE_SEROUT_BAUD"]
+        preprocessor_info("Serout Baud changed to {}".format(baud_val))
+        
+    if "TABLE_SEROUT_PIN" in definitions:
+        pin_val = definitions["TABLE_SEROUT_PIN"]
+        preprocessor_info("Serout Pin changed to {}".format(pin_val))
 
     # Generate and write the subroutines to the file
     with open (outputfilename, 'a') as output_file:
@@ -669,15 +709,17 @@ defined to back up variables if 'TABLE_SERTXD_ADDRESS_END_VAR' is defined.""")
         storage = "readtable"
         if "TABLE_SERTXD_USE_EEPROM" in definitions:
             storage = "read"
-
+        command = "sertxd"
+        if print_type == "serout":
+            command = "serout " + pin_val + "," + baud_val
         # Start writing the printing subroutine
-        output_file.write("print_table_sertxd:\n")
+        output_file.write("print_table_{}:\n".format(print_type))
         output_file.write("""    for {} = {} to {}
-    {} {}, {}
-    sertxd({})
-next {}
+        {} {}, {}
+        {}({})
+    next {}
 
-""".format(address_var, address_var, end_var, storage, address_var, tmp_var, tmp_var, address_var))
+""".format(address_var, address_var, end_var, storage, address_var, tmp_var, command, tmp_var, address_var))
 
         # Restore from the backup as needed.
         if "TABLE_SERTXD_BACKUP_VARS" in definitions:
@@ -687,9 +729,9 @@ next {}
             output_file.write("    peek {}, {}\n".format(save_loc + 3, end_varl))
             output_file.write("    peek {}, {}\n".format(save_loc + 4, end_varh))
         output_file.write("    return\n\n")
-        for i in table_sertxd_strings:
+        for i in list(table_sertxd_strings):
             output_file.write(i)
-    
+            table_sertxd_strings.remove(i) #clear array to prevent duplicate storage if multiple table_print styles are used
     # Calculate the number of bytes used.
     allowed_chars = 256
     if 'm2' in chip and storage == "readtable":
@@ -784,7 +826,7 @@ def replace(key: str, value: str, line: str) -> str:
         if(line[i] == "\""):
             # Start or end of a string
             in_string = not in_string
-        elif(line[i] == "'" or line[i] == ";") and line[i:i+8] != ";#sertxd":
+        elif(line[i] == "'" or line[i] == ";") and line[i:i+8] != ";#sertxd" and line[i:i+8] != ";#serout":
             # Start of a comment
             in_comment = True
         elif(line[i] == "\n"):
