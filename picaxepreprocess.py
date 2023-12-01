@@ -711,7 +711,7 @@ defined to back up variables if 'TABLE_SERTXD_ADDRESS_END_VAR' is defined.""")
             storage = "read"
         command = "sertxd"
         if print_type == "serout":
-            command = "serout " + pin_val + "," + baud_val
+            command = "serout " + pin_val + "," + baud_val + ","
         # Start writing the printing subroutine
         output_file.write("print_table_{}:\n".format(print_type))
         output_file.write("""    for {} = {} to {}
