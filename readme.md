@@ -49,6 +49,7 @@ picaxepreprocess.py [OPTIONS] [INPUTFILE]
 |       | `--nocolor`     |       no       | Disable terminal colour for systems that do not support it (Windows).                                                                                                |
 |       | `--noifs`       |       no       | Disable evaluation of `#if` and `#ifdef` - this will be left to the compiler if this flag is present.                                                                |
 |       | `--tablesertxd` |       no       | Enable a non standard extension that will evaluate a `;#sertxd` directive. See the [Table Sertxd Extension](#table-sertxd-extension) section below for more details. |
+|       | `--tableserout` |       no       | Enable a non standard extension that will evaluate a `;#serout` directive. Also automatically enables `--tablesertxd`. See the [Table Sertxd Extension](#table-sertxd-extension) section below for more details. |
 |       | `--verbose`     |       no       | Print preproccessor debugging info                                                                                                                                   |
 | `-h`  | `--help`        |       no       | Display a text version of this help message                                                                                                                          |
 
@@ -70,8 +71,8 @@ picaxepreprocess.py [OPTIONS] [INPUTFILE]
 |       | `--tidy`         |       no       | Remove the output file on completion if in upload mode.                                                                                                                                                                                                 |
 | `-P`  | `--compilepath=` |      yes       | Specify the path to the compilers directory (defaults to `/usr/local/lib/picaxe/`)                                                                                                                                                                      |
 
-### Table Sertxd Extension
-Enable a non standard extension that will evaluate a `;#sertxd` directive to automatically save, load and print a string from table memory on supported chips.
+### Table Sertxd/Serout Extension
+Enable a non standard extension that will evaluate a `;#sertxd` or `;#serout` directive to automatically save, load and print a string from table memory on supported chips.
 
 For example:
 ```basic
@@ -82,7 +83,7 @@ Syntax is the same as the `sertxd` command, although dynamic content such as pri
 
 Two word and one byte variables are required for storing addresses and processing, as set by the defines outlined below. These variables can be modified between calls to `;#sertxd`, although any call to `;#sertxd` will modify them unless variable backup and restore to storage ram is enabled.
 
-#### The folowing definitions can be used to change the default behaviour: <!-- omit in toc -->
+#### The folowing definitions can be used to change the default behaviour (and apply to both tablesertxd and tableserout: <!-- omit in toc -->
 
 | Definition                     |  Default Value   | Description                                                                                                                                                                |
 | ------------------------------ | :--------------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -103,6 +104,12 @@ Two word and one byte variables are required for storing addresses and processin
 | `TABLE_SERTXD_ADDRESS_END_VAR_H` |     `b3`      | The upper byte                                                                                                  |
 
 This flag also enables the non standard `;#sertxdnl` directive that prints a new line. When called many times, this uses less program space than `sertxd(cr, lf)`
+
+#### Only required for tableserout: <!-- omit in toc -->
+| Definition                       | Default Value | Description                                                                                                     |
+| -------------------------------- | :-----------: | --------------------------------------------------------------------------------------------------------------- |
+| `TABLE_SEROUT_PIN`               | none(required)| The output pin to send the serial message on (eg `C.0`).                                                        |
+| `TABLE_SEROUT_BAUD`              |    `N4800`    | The baud rate to output the serial signal (see [the PICAXE Command Reference](https://picaxe.com/basic-commands/serial-rs232-interfacing/serout/) for list of valid baud rates) |
 
 #### Table Sertxd Extension usage example <!-- omit in toc -->
 <details>
