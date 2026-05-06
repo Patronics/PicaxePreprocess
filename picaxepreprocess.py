@@ -213,7 +213,7 @@ def main(argv):
             send_to_compiler = True
         elif opt in ("--online-compile"):
             online_compiler = True
-            compiler_path = "https://picaxecloud.com/compiler/compile.json"
+            compiler_path = "https://www.picaxecloud.com/compiler/compile.json"
         elif opt in ("-v", "--variant"): # Picaxe variant
             set_chip(arg)
         elif opt in ("-s", "--syntax"): # Syntax only
@@ -223,7 +223,7 @@ def main(argv):
         elif opt in ("--online-syntax"):
             online_compiler = True
             syntax_check_only = True
-            compiler_path = "https://picaxecloud.com/compiler/check.json"
+            compiler_path = "https://www.picaxecloud.com/compiler/check.json"
         elif opt in ("-f", "--firmware"): # Firmware check
             command.append("-f")
         elif opt in ("-c", "--comport"): # Serial port given
@@ -320,10 +320,45 @@ Install this module with the command
 python3 -m pip install requests
 and try again, or use the offline compiler""")
         with open (outputfilename, 'r') as processed_file:
+            BOLD = "\x1b[1m"
+            PINK = "\x1b[95m"
+            RESET = "\x1b[0m"
             #produce 'form' layout online compiler expects
             compileFormData = {'platform':chip, 'code':processed_file.read()}
-            compile_request = requests.post(compiler_path, json=compileFormData)
-            compile_result = json.loads(compile_request.text)
+            #headers = {
+            #    "Content-Type": "application/x-www-form-urlencoded",
+            #    "X-Requested-With": "XMLHttpRequest",
+            #    "Accept": "application/json"
+            #}
+            try:
+                compile_request = requests.post(compiler_path, data=compileFormData)#, headers=headers)
+                compile_result = json.loads(compile_request.text)
+            except json.JSONDecodeError as e:
+                print(f"{PINK}JSON decode error:{RESET}", e)
+                print(f"{PINK}Status code:{RESET}", compile_request.status_code)
+                print(f"{PINK}Response headers:{RESET}", compile_request.headers)
+                print(f"{PINK}Request Method and URL{RESET}", compile_request.request.method, compile_request.request.url)
+                print(f"{PINK}Request sent (first 500 bytes):{RESET}", getattr(compile_request, "request").body[:500])
+                print(f"{PINK}Response body (first 2000 chars):{RESET}")
+                print(compile_request.text[:2000])
+                # optional: raise or handle gracefully
+                raise
+            except requests.exceptions.InvalidSchema as e:
+                print(f"{PINK}Invalid schema error:{RESET}", e)
+                print(f"{PINK}URL provided:{RESET}", compiler_path)
+                raise
+            except requests.exceptions.RequestException as e:
+                # Catches connection errors, timeouts, too many redirects, etc.
+                print(f"{PINK}Request error:{RESET}", e)
+                # If a response object exists, show diagnostics
+                resp = locals().get("compile_request")
+                if resp is not None:
+                    print(f"{PINK}Status code:{RESET}", resp.status_code)
+                    print(f"{PINK}Response body (snippet):{RESET}\n", resp.text[:2000])
+                raise
+            except Exception as e:
+                print(f"{PINK}Unexpected error:{RESET}", type(e).__name__, e)
+                raise
             if "status" in compile_result.keys():
                 print(f"\u001b[1m\u001b[32mSYNTAX CHECK SUCCESS: {compile_result['status']}\u001b[0m")
             elif "errors" in compile_result.keys():

@@ -2,6 +2,8 @@ prog_port = $(shell ls /dev/tty.usbserial-*)
 
 all: syntax slavesyntax
 
+onlineerror:
+	./picaxepreprocess.py --online-syntax -i ./Examples/syntaxError.bas
 
 syntax: preprocess
 	tr -d '\r' < compiled.bas > ./compilers/compiled.bas
