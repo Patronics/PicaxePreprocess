@@ -183,9 +183,11 @@ such as ',', ''', ';', ')', '(', ']', '[', ':', '#', ... This line contains dyna
 See the Makefile for an example of advanced usage. When properly configured, the makefile can automatically handle preprocessing the code, compiling it, and uploading to a picaxe chip by simply invoking `make compile` and run a syntax check with `make syntax`. The makefile also demonstrates usage with multiple picaxe chips with separate programs in the same project directory.
 
 ### Online Compile
-The online compiler feature is experimental and uses an undocumented API that may be changed and break at any time, but should allow programming even without any compilers available on your operating system.
-If using the online compile to produce a .axe file, you'll need the [PICAXE programmer app](https://picaxe.com/software/drivers/picaxe-programmer-app/) or the [online PICAXE programmer tool](https://picaxe.com/software/drivers/picaxe-programmer-app/cloud/index.html).
-As an additional experimental project, haxepad.html can be used to integrate with the online compiler as an experimental yet very primitive graphical interface.
+The online compiler feature is experimental and uses an undocumented API that may be changed and break at any time, but has been largely stable for the last several years. This allows programming even without any native compilers available for your operating system (such as on MacOS with Apple Silicon and without Rosetta 2).
+
+If using the online compile functionality to produce a .axe file, you'll need the [PICAXE programmer app](https://picaxe.com/software/drivers/picaxe-programmer-app/) or the [online PICAXE programmer tool](https://picaxe.com/software/drivers/picaxe-programmer-app/cloud/index.html) to upload it to the PICAXE chip.
+
+As an additional experimental project, haxepad.html can be used to integrate with the online compiler as a functional yet very primitive graphical programming interface.
 
 ## Other projects
 If you're interested in this project, you may also like [this similar PICAXE Preprocessor implementation](https://github.com/jgOhYeah/PICAXE-Libraries-Extras), or  [this similar C-style preprocessor from ParksProjets](https://github.com/ParksProjets/C-Preprocessor).
