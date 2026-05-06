@@ -11,7 +11,9 @@
 # TODO: Interpret #terminal and start minicom or similar with #com params?
 # TODO: Make preprocessor error and warning use global line num and filename variables to not have to pass them around as much.
 # TODO: TABLE SERTXD Escape chars (\)
-import sys, getopt, os, datetime, re, os.path, subprocess
+import sys, getopt, os, datetime, re, os.path, subprocess, json, base64
+has_requests = False
+
 inputfilename = 'main.bas'
 outputfilename = 'compiled.bas'
 outputpath = ""
@@ -39,6 +41,8 @@ compiler_name = "picaxe"
 compiler_extension = "" # File extension (.exe...). For linux anyway, there is none, but including
                         # just in case it is different for other platforms.
 send_to_compiler = False
+online_compiler = False
+syntax_check_only = False
 command = [""] # Empty string at the first position will be replaced by the compiler name and path.
 tidy = False
 
@@ -62,7 +66,10 @@ Optional switches
                         the last argument given.
     -o, --ofile=       Output file (default compiled.bas)
     -u, --upload       Send the file to the compiler if this option is included.
+        --online-compile  Use the online compiler and output a compiled .axe file
     -s, --syntax       Send the file to the compiler for a syntax check only
+                        (no download)
+        --online-syntax  Use the online compiler for a syntax check only
                         (no download)
         --nocolor      Disable terminal colour for systems that do not support
                         it (Windows).
@@ -160,6 +167,8 @@ def main(argv):
     global outputfilename
     global outputpath
     global send_to_compiler
+    global online_compiler
+    global syntax_check_only
     global port
     global command
     global tidy
@@ -179,7 +188,7 @@ def main(argv):
                 argv.pop() # Remove the -i option as it has been parsed here.
 
     try:
-        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "verbose", "tablesertxd","tableserout"])
+        opts, _ = getopt.getopt(argv,"hi:o:uv:sfc:detpP:",["help", "ifile=","ofile=","upload","variant=","syntax","firmware","comport=","debug","debughex","edebug","edebughex","term","termhex","termint", "pass", "tidy", "compilepath=", "nocolor", "noifs", "verbose", "tablesertxd","tableserout","online-syntax", "online-compile"])
     except getopt.GetoptError:
         print_help()
         sys.exit(2)
@@ -202,11 +211,19 @@ def main(argv):
             outputfilename = arg
         elif opt in ("-u", "--upload"):
             send_to_compiler = True
+        elif opt in ("--online-compile"):
+            online_compiler = True
+            compiler_path = "https://www.picaxecloud.com/compiler/compile.json"
         elif opt in ("-v", "--variant"): # Picaxe variant
             set_chip(arg)
         elif opt in ("-s", "--syntax"): # Syntax only
             send_to_compiler = True
+            syntax_check_only = True #currently unused in this path
             command.append("-s")
+        elif opt in ("--online-syntax"):
+            online_compiler = True
+            syntax_check_only = True
+            compiler_path = "https://www.picaxecloud.com/compiler/check.json"
         elif opt in ("-f", "--firmware"): # Firmware check
             command.append("-f")
         elif opt in ("-c", "--comport"): # Serial port given
@@ -294,8 +311,67 @@ path with -P?""".format(command[0]))
             os.remove(outputfilename)
             err_file = outputfilename.replace("."+outputfilename.split(".")[-1],"") + ".err" # Calculate the name of the error file
             os.remove(err_file)
-
-
+    if online_compiler:
+        try:
+            import requests
+        except ImportError:
+            preprocessor_error("""Using the online compiler requires the python 'requests' module
+Install this module with the command
+python3 -m pip install requests
+and try again, or use the offline compiler""")
+        with open (outputfilename, 'r') as processed_file:
+            BOLD = "\x1b[1m"
+            PINK = "\x1b[95m"
+            RESET = "\x1b[0m"
+            #produce 'form' layout online compiler expects
+            compileFormData = {'platform':chip, 'code':processed_file.read()}
+            #headers = {
+            #    "Content-Type": "application/x-www-form-urlencoded",
+            #    "X-Requested-With": "XMLHttpRequest",
+            #    "Accept": "application/json"
+            #}
+            try:
+                compile_request = requests.post(compiler_path, data=compileFormData)#, headers=headers)
+                compile_result = json.loads(compile_request.text)
+            except json.JSONDecodeError as e:
+                print(f"{PINK}JSON decode error:{RESET}", e)
+                print(f"{PINK}Status code:{RESET}", compile_request.status_code)
+                print(f"{PINK}Response headers:{RESET}", compile_request.headers)
+                print(f"{PINK}Request Method and URL{RESET}", compile_request.request.method, compile_request.request.url)
+                print(f"{PINK}Request sent (first 500 bytes):{RESET}", getattr(compile_request, "request").body[:500])
+                print(f"{PINK}Response body (first 2000 chars):{RESET}")
+                print(compile_request.text[:2000])
+                # optional: raise or handle gracefully
+                raise
+            except requests.exceptions.InvalidSchema as e:
+                print(f"{PINK}Invalid schema error:{RESET}", e)
+                print(f"{PINK}URL provided:{RESET}", compiler_path)
+                raise
+            except requests.exceptions.RequestException as e:
+                # Catches connection errors, timeouts, too many redirects, etc.
+                print(f"{PINK}Request error:{RESET}", e)
+                # If a response object exists, show diagnostics
+                resp = locals().get("compile_request")
+                if resp is not None:
+                    print(f"{PINK}Status code:{RESET}", resp.status_code)
+                    print(f"{PINK}Response body (snippet):{RESET}\n", resp.text[:2000])
+                raise
+            except Exception as e:
+                print(f"{PINK}Unexpected error:{RESET}", type(e).__name__, e)
+                raise
+            if "status" in compile_result.keys():
+                print(f"\u001b[1m\u001b[32mSYNTAX CHECK SUCCESS: {compile_result['status']}\u001b[0m")
+            elif "errors" in compile_result.keys():
+                print(f"""
+\u001b[1m\u001b[31mSYNTAX CHECK FAILED\u001b[0m\u001b[1m on line:
+{compile_result['errors'][0]}
+{compile_result['errors'][1]}
+{compile_result['errors'][2]}\u001b[0m""")
+            elif "axe" in compile_result:
+                #base64 decode the result into the .axe file expected
+                with open (f'{outputfilename}.axe', 'wb') as compiled_file:
+                    compiled_file.write(base64.b64decode(compile_result['axe']))
+                    preprocessor_success(f"\u001b[1monline compile sucessful, saved to {outputfilename}.axe\u001b[0m")
     print()
     print("Done.")
                 
@@ -897,5 +973,16 @@ def preprocessor_info(*values, **kwargs):
     if verbose:
         print(*values, **kwargs)
 
+def preprocessor_success(msg):
+    """ Prints a success status message. Similar to warning. """
+    if use_colour:
+        print("\u001b[1m\u001b[32m", end="") # Bold Green
+    print("Successs")
+    if use_colour:
+        print("\u001b[0m", end="") # Reset
+    print(msg)
+
+
 if __name__ == "__main__":
     main(sys.argv[1:])
+    

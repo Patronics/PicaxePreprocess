@@ -70,6 +70,9 @@ picaxepreprocess.py [OPTIONS] [INPUTFILE]
 | `-p`  | `--pass`         |       no       | Add pass message to error report file                                                                                                                                                                                                                   |
 |       | `--tidy`         |       no       | Remove the output file on completion if in upload mode.                                                                                                                                                                                                 |
 | `-P`  | `--compilepath=` |      yes       | Specify the path to the compilers directory (defaults to `/usr/local/lib/picaxe/`)                                                                                                                                                                      |
+|       | `--online-compile`|      no       | Use the online compiler and output a compiled .axe file (instead of the local compiler)                                                                                                                                                                 |
+|       | `--online-syntax`|       no       | Use the online compiler for a syntax check only (no download)                                                                                                                                                                 |
+
 
 ### Table Sertxd/Serout Extension
 Enable a non standard extension that will evaluate a `;#sertxd` or `;#serout` directive to automatically save, load and print a string from table memory on supported chips.
@@ -179,6 +182,10 @@ such as ',', ''', ';', ')', '(', ']', '[', ':', '#', ... This line contains dyna
 ### Usage with a makefile
 See the Makefile for an example of advanced usage. When properly configured, the makefile can automatically handle preprocessing the code, compiling it, and uploading to a picaxe chip by simply invoking `make compile` and run a syntax check with `make syntax`. The makefile also demonstrates usage with multiple picaxe chips with separate programs in the same project directory.
 
+### Online Compile
+The online compiler feature is experimental and uses an undocumented API that may be changed and break at any time, but should allow programming even without any compilers available on your operating system.
+If using the online compile to produce a .axe file, you'll need the [PICAXE programmer app](https://picaxe.com/software/drivers/picaxe-programmer-app/) or the [online PICAXE programmer tool](https://picaxe.com/software/drivers/picaxe-programmer-app/cloud/index.html).
+As an additional experimental project, haxepad.html can be used to integrate with the online compiler as an experimental yet very primitive graphical interface.
 
 ## Other projects
 If you're interested in this project, you may also like [this similar PICAXE Preprocessor implementation](https://github.com/jgOhYeah/PICAXE-Libraries-Extras), or  [this similar C-style preprocessor from ParksProjets](https://github.com/ParksProjets/C-Preprocessor).
