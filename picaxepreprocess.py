@@ -193,13 +193,13 @@ def main(argv):
         print_help()
         sys.exit(2)
     for opt, arg in opts:
-        if opt == "--nocolor":
+        if opt in ("--nocolor",):
             use_colour = False
-        elif opt == "--noifs":
+        elif opt in ("--noifs",):
             use_ifs = False
-        elif opt == "--tablesertxd":
+        elif opt  in ("--tablesertxd",):
             enable_table_sertxd = True
-        elif opt == "--tableserout":
+        elif opt  in ("--tableserout",):
             enable_table_serout = True
             enable_table_sertxd = True
         elif opt in ("-h", "--help"):
@@ -211,7 +211,7 @@ def main(argv):
             outputfilename = arg
         elif opt in ("-u", "--upload"):
             send_to_compiler = True
-        elif opt in ("--online-compile"):
+        elif opt in ("--online-compile",):
             online_compiler = True
             compiler_path = "https://www.picaxecloud.com/compiler/compile.json"
         elif opt in ("-v", "--variant"): # Picaxe variant
@@ -220,7 +220,7 @@ def main(argv):
             send_to_compiler = True
             syntax_check_only = True #currently unused in this path
             command.append("-s")
-        elif opt in ("--online-syntax"):
+        elif opt in ("--online-syntax",):
             online_compiler = True
             syntax_check_only = True
             compiler_path = "https://www.picaxecloud.com/compiler/check.json"
@@ -230,25 +230,25 @@ def main(argv):
             port = arg
         elif opt in ("-d", "--debug"): # Leave port open for normal debug
             command.append("-d")
-        elif opt in ("--debughex"): # Hex debug
+        elif opt in ("--debughex",): # Hex debug
             command.append("-dh")
-        elif opt in ("e", "--edebug"): # Extended debug
+        elif opt in ("-e", "--edebug"): # Extended debug
             command.append("-e")
-        elif opt in ("--edebughex"): # Extended hex debug
+        elif opt in ("--edebughex",): # Extended hex debug
             command.append("-eh")
         elif opt in ("-t", "--term"): # Leave serial port open for monitoring
             command.append("-t")
-        elif opt in ("--termhex"): # Terminal hex
+        elif opt in ("--termhex",): # Terminal hex
             command.append("-th")
-        elif opt in ("--termint"): # Terminal int mode
+        elif opt in ("--termint",): # Terminal int mode
             command.append("-ti")
-        elif opt in ("-p", "pass"): # Pass message in error file required
+        elif opt in ("-p", "--pass"): # Pass message in error file required
             command.append("-p")
-        elif opt in ("--tidy"): # Remove the output file afterwards
+        elif opt in ("--tidy",): # Remove the output file afterwards
             tidy = True
-        elif opt in ("-P", "--compilepath"): #chose non-default path to compilers
+        elif opt in ("-P", "--compilepath"): #choose non-default path to compilers
             compiler_path = os.path.join(arg,'') #adds trailing slash if needed
-        elif opt in ("--verbose"): # Print out info as the preproccessor is running
+        elif opt in ("--verbose",): # Print out info as the preprocessor is running
             verbose = True
 
     if not os.path.exists(inputfilename):
