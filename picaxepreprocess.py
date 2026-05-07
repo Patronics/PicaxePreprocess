@@ -156,7 +156,8 @@ Optional switches only used if sending to the compiler
         --tidy         Remove the output file on completion if in upload mode.
     -P  --compilepath= specify the path to the compilers directory (defaults to
                         /usr/local/lib/picaxe/)
-
+        --online-syntax use the online compiler to run a syntax check
+        --online-compile use the online compiler to produce a .axe file
 Preprocessor for PICAXE microcontrollers.
 See https://github.com/Patronics/PicaxePreprocess for more info.
 """)
